@@ -52,4 +52,5 @@ An Amazon employee told me "have fun with that" when I asked him how to delete d
 ## Inscription
 
 Thanks to the original author @[Pytonballoon810](https://github.com/Pytonballoon810).
+
 Thanks to @[HennieLP](https://github.com/hennielp) for helping me with the script and the README (also thanks to him I didn't have to root my phone to get an HTTP Sniffer running <3).

@@ -1,7 +1,7 @@
 """
 This script is used to interact with the Amazon Alexa API.
 
-It contains two main functions: `get_entities` and `delete_entities`.
+It contains four main functions: `get_entities`, `delete_entities`, `get_graphql_endpoints`, and `delete_endpoints`.
 
 `get_entities` sends a GET request to the specified URL to retrieve entities related to the Amazon Alexa skill.
 The response from the GET request is printed to the console and saved to a JSON file if it's not empty.
@@ -9,57 +9,64 @@ The response from the GET request is printed to the console and saved to a JSON 
 `delete_entities` sends a DELETE request to the specified URL to remove entities related to the Amazon Alexa skill.
 The response from each DELETE request is printed to the console.
 
+`get_graphql_endpoints` sends a POST request to the specified URL to retrieve specific properties of endpoints using a GraphQL query.
+The response from the POST request is printed to the console and saved to a JSON file.
+
+`delete_endpoints` sends a DELETE request to the specified URL to remove endpoints related to the Amazon Alexa skill.
+The response from each DELETE request is printed to the console.
+
 The script uses predefined headers and parameters for the requests, which are defined as global variables at the top of the script.
 
-This script is intended to be run as a standalone file. When run, it first calls `get_entities` to retrieve the entities, 
-and then calls `delete_entities` to delete them.
+This script is intended to be run as a standalone file. When run, it first calls `get_entities` to retrieve the entities,
+then calls `delete_entities` to delete them, then calls `get_graphql_endpoints` to retrieve the endpoints,
+and finally calls `delete_endpoints` to delete them.
 """
 import json
 import time # only needed if you want to add a delay between each delete request
 import requests
+import uuid
 
+# Settings
+DEBUG = False # set this to True if you want to see more output
+SHOULD_SLEEP = False # set this to True if you want to add a delay between each delete request
+DESCRIPTION_FILTER_TEXT = "Home Assistant"
+
+# CHANGE THESE TO MATCH YOUR SETUP
+HOST = "na-api-alexa.amazon.ca"
+USER_AGENT = "AppleWebKit PitanguiBridge/2.2.635412.0-[HARDWARE=iPhone17_3][SOFTWARE=18.2][DEVICE=iPhone]"
+ROUTINE_VERSION = "3.0.255246"
+COOKIE = ';at-acbca="LONG STRING";sess-at-acbca="SHORT STRING";session-id=000-0000000-0000000;session-id-time=2366612930l;session-token=LOING_STRING;ubid-acbca=000-0000000-00000;x-acbca="SHORT_STRING";csrf=NUMBER'
+X_AMZN_ALEXA_APP = "LONG_STRING"
+CSRF = "NUMBER" # should look something like this: 'somenumber'; should match the cookie 
+DELETE_SKILL = "SKILL_LONG_STRING"
+
+# Constants
 DATA_FILE = "data.json"
-USE_DIFFERENT_GET_AND_DELETE_COOKIES = True
-HOST = "eu-api-alexa.amazon.de" # maybe change this to your host... dont know if this is necessary
+GRAPHQL_FILE = "graphql.json"
+GET_URL = f"https://{HOST}/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome"
+DELETE_URL = f"https://{HOST}/api/phoenix/appliance/{DELETE_SKILL}%3D%3D_"
+ACCEPT_HEADER = "application/json; charset=utf-8"
 
-GET_COOKIE = "" # should look something like this: 'at-acbde="Atza|somereallylongtring";csrf=somenumber;sess-at-acbde="ashorterstring";session-id=threenumbers;ubid-acbde=alsothreenumbers;x-acbde="anotherstring"'
-GET_X_AMZN_REQUESTID = "" # should look something like this: 'five-long-strings-separated-dashes'
-GET_X_AMZN_ALEXA_APP = "" # should look something like this: 'justareallyreallylongstring'
-
-CSRF = "" # should look something like this: 'somenumber'; not sure if this is the same as in the GET_COOKIE or DELETE_COOKIE argument
-# NOTE: not tested if these are necessary. I used two different cookies for the get and delete request due to testing. If using the same as aboove leave these empty and set USE_DIFFERENT_GET_AND_DELETE_COOKIES to False
-DELETE_COOKIE = "" # should look something like this: 'at-acbde="Atza|somereallylongtring";csrf=somenumber;sess-at-acbde="ashorterstring";session-id=threenumbers;ubid-acbde=alsothreenumbers;x-acbde="anotherstring"'
-DELETE_X_AMZN_REQUESTID = "" # should look something like this: 'five-long-strings-separated-dashes'
-DELETE_X_AMZN_ALEXA_APP = "" # should look something like this: 'justareallyreallylongstring'
-
-if not USE_DIFFERENT_GET_AND_DELETE_COOKIES:
-    DELETE_COOKIE = GET_COOKIE
-    DELETE_X_AMZN_REQUESTID = GET_X_AMZN_REQUESTID
-    DELETE_X_AMZN_ALEXA_APP = GET_X_AMZN_ALEXA_APP
-
-def get_entities(url = "https://eu-api-alexa.amazon.de/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome"): # maybe change this to your url... dont know if this is necessary
+def get_entities(url = GET_URL): 
     """
     Sends a GET request to the specified URL to retrieve entities related to the Amazon Alexa skill.
 
     The method uses predefined headers and parameters for the request, and saves the response to a JSON file if it's not empty.
 
     Args:
-        url (str, optional): The URL to send the GET request to. Defaults to "https://eu-api-alexa.amazon.de/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome".
+        url (str, optional): The URL to send the GET request to. Defaults to f"https://{HOST}/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome".
 
     Returns:
-        None. The response from the GET request is printed to the console and saved to a JSON file if it's not empty.
+        dict: The JSON response from the GET request.
     """
     GET_HEADERS = {
         "Host": HOST, 
-        "Cookie": GET_COOKIE,
+        "Routines-Version": ROUTINE_VERSION ,
+        "Cookie": COOKIE,
         "Connection": "keep-alive",
-        "x-amzn-RequestId": GET_X_AMZN_REQUESTID,
-        "x-amzn-alexa-app": GET_X_AMZN_ALEXA_APP,
-        "Accept": "application/json; charset=utf-8",
-        "User-Agent": "AppleWebKit PitanguiBridge/2.2.580942.0-[HARDWARE=iPhone13_4][SOFTWARE=17.1.2][DEVICE=iPhone]", # maybe change this to your device... dont know if this is necessary
-        "Accept-Language": "de-DE,de-DE;q=1.0,en-DE;q=0.9", # maybe change this to your language... dont know if this is necessary
-        "Routines-Version": "3.0.194870", # maybe change this to your version... dont know if this is necessary
-        "Accept-Encoding": "gzip, deflate, br"
+        "x-amzn-alexa-app": X_AMZN_ALEXA_APP,
+        "Accept": ACCEPT_HEADER,
+        "User-Agent": USER_AGENT,
     }
 
     parameters = {
@@ -67,8 +74,6 @@ def get_entities(url = "https://eu-api-alexa.amazon.de/api/behaviors/entities?sk
     }
 
     response = requests.get(url, headers=GET_HEADERS, params=parameters, timeout=15)
-
-    print(response.text, response.status_code)
 
     if response.text.strip():
         # Convert the response content to JSON
@@ -80,53 +85,210 @@ def get_entities(url = "https://eu-api-alexa.amazon.de/api/behaviors/entities?sk
             json.dump(response_json, file)
     else:
         print("Empty response received from server.")
+    
+    return response_json
 
-def delte_entities(delete_cookie = DELETE_COOKIE):
+def check_device_deleted(entity_id):
+    """
+    Sends a GET request to check if the device was deleted.
+
+    Args:
+        entity_id (str): The ID of the entity to check.
+
+    Returns:
+        bool: True if the device was deleted, False otherwise.
+    """
+    url = f"https://{HOST}/api/smarthome/v1/presentation/devices/control/{entity_id}"
+    headers = {
+        "x-amzn-RequestId": str(uuid.uuid4()),
+        "Host": HOST,
+        "User-Agent": USER_AGENT,
+        "Cookie": COOKIE,
+        "Connection": "keep-alive",
+        "Accept": ACCEPT_HEADER,
+        "x-amzn-alexa-app": X_AMZN_ALEXA_APP
+    }
+    response = requests.get(url, headers=headers, timeout=10)
+    if DEBUG:
+        print(f"Check device deleted response status code: {response.status_code}")
+        print(f"Check device deleted response text: {response.text}")
+    return response.status_code == 404
+
+
+def delete_entities():
     """
     Sends a DELETE request to the specified URL to remove entities related to the Amazon Alexa skill.
 
     The method uses predefined headers for the request. It reads entity data from a JSON file, and for each entity, 
     it constructs a URL and sends a DELETE request to that URL.
 
-    Args:
-        delete_cookie (str, optional): The cookie to be used in the request headers. Defaults to DELETE_COOKIE.
-
     Returns:
         None. The response from each DELETE request is printed to the console.
     """
-    DELTE_HEADERS = {
+    DELETE_HEADERS = {
     "Host": HOST, 
     "Content-Length": "0",
-    "x-amzn-RequestId": DELETE_X_AMZN_REQUESTID,
-    "x-amzn-alexa-app": DELETE_X_AMZN_ALEXA_APP,
+    "x-amzn-alexa-app": X_AMZN_ALEXA_APP,
     "Connection": "keep-alive",
-    "Accept": "application/json; charset=utf-8",
-    "User-Agent": "AppleWebKit PitanguiBridge/2.2.580942.0-[HARDWARE=iPhone13_4][SOFTWARE=17.1.2][DEVICE=iPhone]", # maybe change this to your device... dont know if this is necessary
-    "Accept-Language": "de-DE,de-DE;q=1.0,en-DE;q=0.9", # maybe change this to your language... dont know if this is necessary
+    "Accept": ACCEPT_HEADER,
+    "User-Agent": USER_AGENT,
     "csrf": CSRF,
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cookie": delete_cookie} 
+    "Cookie": COOKIE} 
     # Open the file for reading
     with open(DATA_FILE, 'r', encoding="utf_8") as file:
         # Load the JSON data from the file
         response_json = json.load(file)
         for item in response_json:
-            name = str(item["description"]).replace("switch.", "").split(" ", maxsplit=1)[0]
-            device_type = str(item["description"]).replace("switch.", "").split(".", maxsplit=1)[0].lower()
-            manufacturer = "".join(str(item["description"]).split(" ")[-2:]).lower()
-            print(name, manufacturer)
-            if manufacturer.lower() == "homeassistant": # you are free to change this to the manufacturer you want to delete from. I used it to only delete entities integrated via the home assistant custom skill; this will most definitely be different if you do want to delete devices not integrated via Home Assistant 
-                name = name.lower().replace(" ", "_")
-                url = f"__URL__%3D%3D_{device_type}%23{name}" # replace __URL__ with the url you got from the http catcher. Should look something like this: https://eu-api-alexa.amazon.de/api/phoenix/appliance/SKILL_a_really_long_string_probably_the_skill_id%3D%3D
+            description = str(item["description"])
+            if DESCRIPTION_FILTER_TEXT in description:
+                entity_id = item["id"]
+                name = item["displayName"]
+                device_id_for_url = (description).replace(".", "%23").replace(" via Home Assistant","").lower()
+                print(f"Name: '{name}', Entity ID: '{entity_id}', Device ID: '{device_id_for_url}', Description: '{description}'")
+                url = f"{DELETE_URL}{device_id_for_url}"
 
-                response = requests.delete(url, headers=DELTE_HEADERS, timeout=10)
+                for attempt in range(4):
+                    DELETE_HEADERS["x-amzn-RequestId"] = str(uuid.uuid4())
 
-                print(name)
-                print("\t", response.status_code, response.text)
-                # uncomment the following line if you want to add a delay between each delete request
-                # time.sleep(.2)
+                    # Send the DELETE request
+                    response = requests.delete(url, headers=DELETE_HEADERS, timeout=10)
+
+                    # Log the response details
+                    if DEBUG:
+                        print(f"Response Status Code: {response.status_code}")
+                        print(f"Response Text: {response.text}")
+
+                    # Check if the entity was deleted using the new function
+                    if check_device_deleted(entity_id):
+                        if DEBUG:
+                            print(f"Entity {name}:{entity_id} successfully deleted.")
+                        break
+                    else:
+                        print(f"Entity {name}:{entity_id} was not deleted. Attempt {attempt + 1}.")
+                        if attempt == 3:
+                            print("Failed to delete entity after 4 attempts. Quitting.")
+                            return
+                    if SHOULD_SLEEP:
+                        time.sleep(.2)
+
+def get_graphql_endpoints():
+    """
+    Sends a POST request to the specified URL to retrieve specific properties of endpoints.
+
+    The method uses predefined headers and a GraphQL query for the request, and saves the response to a JSON file.
+
+    Returns:
+        dict: The JSON response from the POST request.
+    """
+    url = "https://na-api-alexa.amazon.ca/nexus/v1/graphql"
+    headers = {
+        "Content-Length": "1839",
+        "Cookie": COOKIE,
+        "Host": HOST,
+        "Connection": "keep-alive",
+        "Accept-Language": "en-CA,en-CA;q=1.0,ar-CA;q=0.9",
+        "csrf": CSRF,
+        "Content-Type": "application/json; charset=utf-8",
+        "x-amzn-RequestId": str(uuid.uuid4()),
+        "User-Agent": USER_AGENT,
+        "Accept-Encoding": "gzip, deflate, br",
+        "x-amzn-alexa-app": X_AMZN_ALEXA_APP,
+        "Accept": ACCEPT_HEADER
+    }
+    data = {
+        "query": """
+        query CustomerSmartHome {
+            endpoints(endpointsQueryParams: { paginationParams: { disablePagination: true } }) {
+                items {
+                    friendlyName
+                    legacyAppliance {
+                        applianceId
+                        mergedApplianceIds
+                        connectedVia
+                        applianceKey
+                        appliancePairs
+                        modelName
+                        friendlyDescription
+                        version
+                        friendlyName
+                        manufacturerName
+                    }
+                }
+            }
+        }
+        """
+    }
+    response = requests.post(url, headers=headers, json=data, timeout=15)
+    response_json = response.json()
+
+    # Open a file for writing
+    with open(GRAPHQL_FILE, 'w', encoding="utf_8") as file:
+        # Write the JSON data to the file
+        json.dump(response_json, file)
+    # print(json.dumps(response_json, indent=4))
+    return response_json
+
+def delete_endpoints():
+    """
+    Sends a DELETE request to the specified URL to remove endpoints related to the Amazon Alexa skill.
+
+    The method uses predefined headers for the request. It reads endpoint data from a JSON file, and for each endpoint, 
+    it constructs a URL and sends a DELETE request to that URL.
+
+    Returns:
+        None. The response from each DELETE request is printed to the console.
+    """
+    DELETE_HEADERS = {
+    "Host": HOST, 
+    "Content-Length": "0",
+    "x-amzn-alexa-app": X_AMZN_ALEXA_APP,
+    "Connection": "keep-alive",
+    "Accept": ACCEPT_HEADER,
+    "User-Agent": "AppleWebKit PitanguiBridge/2.2.635412.0-[HARDWARE=iPhone17_3][SOFTWARE=18.2][DEVICE=iPhone]", # maybe change this to your device... dont know if this is necessary
+    "Accept-Language": "en-CA,en-CA;q=1.0,ar-CA;q=0.9", # maybe change this to your language... dont know if this is necessary
+    "csrf": CSRF,
+    "Cookie": COOKIE} 
+    # Open the file for reading
+    with open(GRAPHQL_FILE, 'r', encoding="utf_8") as file:
+        # Load the JSON data from the file
+        response_json = json.load(file)
+        for item in response_json["data"]["endpoints"]["items"]:
+            description = str(item["legacyAppliance"]["friendlyDescription"])
+            manufacturer_name = str(item["legacyAppliance"]["manufacturerName"])
+            if DESCRIPTION_FILTER_TEXT in manufacturer_name:
+                entity_id = item["legacyAppliance"]["applianceKey"]
+                name = item["friendlyName"]
+                device_id_for_url = (description).replace(".", "%23").replace(" via Home Assistant","").lower()
+                print(f"Name: '{name}', Entity ID: '{entity_id}', Device ID: '{device_id_for_url}', Description: '{description}'")
+                url = f"{DELETE_URL}{device_id_for_url}"
+
+                for attempt in range(4):
+                    DELETE_HEADERS["x-amzn-RequestId"] = str(uuid.uuid4())
+
+                    # Send the DELETE request
+                    response = requests.delete(url, headers=DELETE_HEADERS, timeout=10)
+
+                    # Log the response details
+                    if DEBUG:
+                        print(f"Response Status Code: {response.status_code}")
+                        print(f"Response Text: {response.text}")
+
+                    # Check if the entity was deleted using the new function
+                    if check_device_deleted(entity_id):
+                        if DEBUG:
+                            print(f"Entity {name}:{entity_id} successfully deleted.")
+                        break
+                    else:
+                        print(f"Entity {name}:{entity_id} was not deleted. Attempt {attempt + 1}.")
+                        if attempt == 3:
+                            print("Failed to delete entity after 4 attempts. Quitting.")
+                            return
+                    if SHOULD_SLEEP:
+                        time.sleep(.2)
 
 if __name__ == "__main__":
     get_entities()
-    delte_entities()
-            
+    delete_entities()
+    get_graphql_endpoints()
+    delete_endpoints()
+

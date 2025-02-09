@@ -180,7 +180,7 @@ def get_graphql_endpoints():
     Returns:
         dict: The JSON response from the POST request.
     """
-    url = "https://na-api-alexa.amazon.ca/nexus/v1/graphql"
+    url = f"https://{HOST}/nexus/v1/graphql"
     headers = {
         "Content-Length": "1839",
         "Cookie": COOKIE,

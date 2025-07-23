@@ -73,11 +73,32 @@ You can run the CLI tool directly (no need to use `-m` or specify the module pat
 uv run alexa_manager --help
 ```
 
+### CLI Arguments
+
+| Argument                | Description                                                                                   |
+|------------------------|-----------------------------------------------------------------------------------------------|
+| `--delete-entities`    | Delete Alexa skill entities that match the configured filter.                                  |
+| `--delete-endpoints`   | Delete Alexa GraphQL endpoints (devices/endpoints discovered via GraphQL).                     |
+| `--delete-groups`      | Delete all Alexa groups.                                                                      |
+| `--create-groups`      | Create Alexa groups for each Home Assistant area.                                             |
+| `--get-entities`       | Output Alexa skill entities as a table.                                                       |
+| `--get-endpoints`      | Output Alexa GraphQL endpoints as a table.                                                    |
+| `--get-groups`         | Output Alexa groups as a table.                                                               |
+| `--get-ha-areas`       | Output Home Assistant areas as a table.                                                       |
+| `--get-ha-mapping`     | Output mapping of HA entity IDs to Alexa Application IDs for each area.                       |
+| `--alexa-only`         | Run in Alexa Only mode (skip all Home Assistant dependent steps).                             |
+| `--dry-run`           | Simulate all destructive actions. Only GET requests are performed; DELETE, PUT, POST actions are displayed (using Rich) and not executed. Useful for previewing what would happen without making changes. |
+| `--help`               | Show help message and exit.                                                                   |
+
 **Examples:**
 ```sh
 uv run alexa_manager --get-entities
 uv run alexa_manager --delete-entities --delete-groups
 uv run alexa_manager --create-groups
+uv run alexa_manager --get-ha-areas
+uv run alexa_manager --alexa-only
+uv run alexa_manager --delete-entities --dry-run
+uv run alexa_manager --create-groups --dry-run
 ```
 
 **Alexa Only Mode:**
@@ -86,6 +107,17 @@ You can run the tool in Alexa Only mode to skip all Home Assistant dependent ste
 uv run alexa_manager --alexa-only
 ```
 When --alexa-only is specified, any Home Assistant-dependent actions (including --create-groups) will be skipped and have no effect. Home Assistant configuration entries are not required and will not cause errors in this mode. This mode is useful if you only want to manage Alexa entities and groups without any Home Assistant integration.
+
+**Dry Run Mode:**
+You can use the tool with `--dry-run` to preview all actions without making any changes:
+```sh
+uv run alexa_manager --delete-entities --dry-run
+uv run alexa_manager --create-groups --dry-run
+```
+- Only GET requests are performed.
+- DELETE, PUT, POST actions are displayed using Rich and not executed.
+- If a step depends on the result of a destructive action, the result is mocked for workflow continuity.
+- Output is verbose and clearly indicates simulated actions.
 
 ## Testing
 

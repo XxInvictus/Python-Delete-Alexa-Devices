@@ -165,3 +165,5 @@ HA_HEADERS: Dict[str, str] = {
     "Authorization": f"Bearer {HA_API_KEY}",
     "Content-Type": "application/json",
 }
+
+DRY_RUN: bool = False  # Global dry-run flag, set by main.py

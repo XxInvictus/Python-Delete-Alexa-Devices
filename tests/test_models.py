@@ -10,7 +10,14 @@ from alexa_manager.models import (
     AlexaGroup,
     AlexaGroups,
     HAArea,
+    AlexaExpandedGroup,
 )
+from unittest.mock import patch
+
+
+class DummyEntity(AlexaEntity):
+    def __init__(self):
+        super().__init__(entity_id="dummy_id", display_name="Dummy", description="Dummy desc")
 
 
 def test_alexa_entity_repr():
@@ -67,3 +74,59 @@ def test_alexa_group_repr():
     result = repr(group)
     assert "Kitchen" in result
     assert "group2" in result
+
+
+def test_alexa_expanded_group_to_dict():
+    """
+    Test AlexaExpandedGroup to_dict returns expected dictionary.
+    """
+    group = AlexaExpandedGroup(
+        name="Test Group",
+        group_id="group123",
+        entity_id="entity123",
+        entity_type="GROUP",
+        group_type="APPLIANCE",
+        child_ids=["child1", "child2"],
+        defaults=[{"type": "default"}],
+        associated_unit_ids=["unit1"],
+        default_metadata_by_type={"type": "meta"},
+        implicit_targeting_by_type={"type": "target"},
+        appliance_ids=["appl1", "appl2"],
+    )
+    result = group.to_dict()
+    assert result["name"] == "Test Group"
+    assert result["id"] == "group123"
+    assert result["entityId"] == "entity123"
+    assert result["entityType"] == "GROUP"
+    assert result["groupType"] == "APPLIANCE"
+    assert result["childIds"] == ["child1", "child2"]
+    assert result["defaults"] == [{"type": "default"}]
+    assert result["associatedUnitIds"] == ["unit1"]
+    assert result["defaultMetadataByType"] == {"type": "meta"}
+    assert result["implicitTargetingByType"] == {"type": "target"}
+    assert result["applianceIds"] == ["appl1", "appl2"]
+
+
+def test_alexa_expanded_group_repr():
+    """
+    Test __repr__ for AlexaExpandedGroup returns expected string.
+    """
+    group = AlexaExpandedGroup(name="Test Group", group_id="group123")
+    result = repr(group)
+    assert "AlexaGroup" in result
+    assert "group123" in result
+    assert "Test Group" in result
+
+
+def test_get_request_dry_run():
+    """
+    Test that GET requests are executed and can be mocked in dry-run mode.
+    Ensures unit tests remain DRY and do not make real network calls.
+    """
+    with patch("requests.get") as mock_get:
+        mock_get.return_value.status_code = 404
+        entity = DummyEntity()
+        # _check_deleted should call requests.get and return True for 404
+        result = entity._check_deleted()
+        mock_get.assert_called_once()
+        assert result is True

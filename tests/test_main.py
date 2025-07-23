@@ -45,9 +45,9 @@ def test_main_no_args(monkeypatch):
     """
     monkeypatch.setattr(sys, "argv", ["main.py"])
     called = {}
-    monkeypatch.setattr(main, "delete_entities", lambda x: [])
-    monkeypatch.setattr(main, "delete_groups", lambda x: [])
-    monkeypatch.setattr(main, "create_groups", lambda x: [])
+    monkeypatch.setattr(main, "delete_entities", lambda x: called.update({"delete_entities": True}) or [])
+    monkeypatch.setattr(main, "delete_groups", lambda x: called.update({"delete_groups": True}) or [])
+    monkeypatch.setattr(main, "create_groups", lambda x: called.update({"create_groups": True}) or [])
     monkeypatch.setattr(main, "get_entities", lambda: MagicMock(entities=[]))
     monkeypatch.setattr(
         main, "get_graphql_endpoint_entities", lambda: MagicMock(entities=[])
@@ -55,9 +55,9 @@ def test_main_no_args(monkeypatch):
     monkeypatch.setattr(main, "get_groups", lambda: MagicMock(groups=[]))
     monkeypatch.setattr(main, "get_ha_areas", lambda: {})
     main.main()
-    assert called.get("delete_entities") is None or called.get("delete_entities")
-    assert called.get("delete_groups") is None or called.get("delete_groups")
-    assert called.get("create_groups") is None or called.get("create_groups")
+    assert called.get("delete_entities")
+    assert called.get("delete_groups")
+    assert called.get("create_groups")
 
 
 @pytest.mark.skip(
@@ -87,15 +87,13 @@ def test_main_fatal_error(monkeypatch):
     Test main CLI handles fatal error gracefully.
     """
     monkeypatch.setattr(sys, "argv", ["main.py"])
-
     def raise_error(*a, **k):
         raise Exception("fatal")
-
-    # Patch both get_entities and delete_entities to ensure the error is triggered
     monkeypatch.setattr(main, "get_entities", lambda: None)
     monkeypatch.setattr(main, "delete_entities", raise_error)
-    with pytest.raises(Exception, match="fatal"):
+    with pytest.raises(Exception) as excinfo:
         main.main()
+    assert "fatal" in str(excinfo.value)
 
 
 def test_main_alexa_only_skips_ha(monkeypatch, caplog):
@@ -126,16 +124,19 @@ def test_main_alexa_only_skips_ha(monkeypatch, caplog):
 def test_main_alexa_only_no_args(monkeypatch, caplog):
     """
     Test main CLI with only --alexa-only argument (no actions).
+    Should not attempt real entity deletion.
     """
+    import sys
+    from alexa_manager.models import AlexaEntity, AlexaGroup
     monkeypatch.setattr(sys, "argv", ["main.py", "--alexa-only"])
     called = {"create_groups": False, "get_ha_areas": False}
-    monkeypatch.setattr(
-        main, "create_groups", lambda _: called.update({"create_groups": True})
-    )
-    monkeypatch.setattr(
-        main, "get_ha_areas", lambda: called.update({"get_ha_areas": True})
-    )
+    monkeypatch.setattr(main, "create_groups", lambda x: called.update({"create_groups": True}) or [])
+    monkeypatch.setattr(main, "get_ha_areas", lambda: called.update({"get_ha_areas": True}) or {})
+    # Patch AlexaEntity.delete to avoid real API calls
+    monkeypatch.setattr(AlexaEntity, "delete", lambda self: True)
+    monkeypatch.setattr(AlexaGroup, "delete", lambda self: True)
     main.main()
+    # Should not call create_groups or get_ha_areas
     assert not called["create_groups"]
     assert not called["get_ha_areas"]
     assert any("Alexa Only mode" in r for r in caplog.messages)

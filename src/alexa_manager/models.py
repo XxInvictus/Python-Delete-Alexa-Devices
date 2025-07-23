@@ -13,6 +13,7 @@ from alexa_manager.config import (
     DO_NOT_DELETE,
     URLS,
     ALEXA_HEADERS,
+    DRY_RUN,
 )
 import requests
 from tenacity import (
@@ -22,8 +23,10 @@ from tenacity import (
     wait_exponential,
 )
 import logging
+from rich.console import Console
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 
 class AlexaEntities:
@@ -114,15 +117,15 @@ class AlexaEntity:
     )
     def delete(self) -> bool:
         """
-        Delete the Alexa entity using the API.
+        Delete the Alexa entity using the API, or simulate if DRY_RUN is True.
 
         Returns:
-            bool: True if deletion was successful, False otherwise.
-
-        Raises:
-            requests.HTTPError: If deletion fails after retries.
+            bool: True if deletion was successful or simulated, False otherwise.
         """
         url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
+        if DRY_RUN:
+            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]")
+            return True  # Simulate success
         if DO_NOT_DELETE:
             logger.info(f"Skipping deletion of entity {self.id} ({self.display_name})")
             return True
@@ -271,44 +274,122 @@ class AlexaGroup:
     )
     def create(self) -> bool:
         """
-        Create the Alexa group using the API.
+        Create the Alexa group via the API, or simulate if DRY_RUN is True.
 
         Returns:
-            bool: True if creation was successful, False otherwise.
-
-        Raises:
-            requests.HTTPError: If creation fails after retries.
+            bool: True if creation was successful or simulated, False otherwise.
         """
-        url = URLS["CREATE_GROUP"]
-        response = requests.post(
-            url, headers=ALEXA_HEADERS, json=self.create_data, timeout=10
-        )
+        url = URLS.get("CREATE_GROUPS", "")
+        if DRY_RUN:
+            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{self.name}[/cyan] with data: [green]{self.create_data}[/green] at [green]{url}[/green]")
+            return True  # Simulate success
+        response = requests.post(url, headers=ALEXA_HEADERS, json=self.create_data, timeout=10)
         if DEBUG:
             logger.debug(f"Create group response status code: {response.status_code}")
             logger.debug(f"Create group response text: {response.text}")
         response.raise_for_status()
-        return response.status_code == 200
+        return response.status_code == 201
 
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
     )
     def delete(self) -> bool:
         """
-        Delete the Alexa group using the API.
+        Delete the Alexa group via the API, or simulate if DRY_RUN is True.
 
         Returns:
-            bool: True if deletion was successful, False otherwise.
-
-        Raises:
-            requests.HTTPError: If deletion fails after retries.
+            bool: True if deletion was successful or simulated, False otherwise.
         """
-        url = f"{URLS['DELETE_GROUP']}{self.id}"
-        if DO_NOT_DELETE:
-            logger.info(f"Skipping deletion of group {self.id} ({self.name})")
-            return True
+        url = f"{URLS.get('DELETE_GROUPS', '')}{self.id}"
+        if DRY_RUN:
+            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{url}[/green]")
+            return True  # Simulate success
         response = requests.delete(url, headers=ALEXA_HEADERS, timeout=10)
         if DEBUG:
             logger.debug(f"Delete group response status code: {response.status_code}")
             logger.debug(f"Delete group response text: {response.text}")
         response.raise_for_status()
-        return response.status_code == 200
+        return response.status_code == 204
+
+
+class AlexaExpandedGroup(AlexaGroup):
+    """
+    Represents an expanded Alexa group with all fields required for PUT operations.
+
+    This class is used for constructing the full payload required when updating
+    Alexa groups via the API. It inherits from AlexaGroup and adds additional fields
+    that are present in the PUT payload structure.
+
+    Attributes:
+        entity_id (str): The entityId field for the group.
+        entity_type (str): The entityType field (default: 'GROUP').
+        group_type (str): The groupType field (default: 'APPLIANCE').
+        child_ids (List[str]): List of child IDs in the group.
+        defaults (List[Any]): List of default settings for the group.
+        associated_unit_ids (List[str]): List of associated unit IDs.
+        default_metadata_by_type (Dict[str, Any]): Metadata by type.
+        implicit_targeting_by_type (Dict[str, Any]): Implicit targeting by type.
+        appliance_ids (List[Any]): List of appliance IDs in the group.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        group_id: str = "",
+        entity_id: str = "",
+        entity_type: str = "GROUP",
+        group_type: str = "APPLIANCE",
+        child_ids: List[str] = None,
+        defaults: List[Any] = None,
+        associated_unit_ids: List[str] = None,
+        default_metadata_by_type: Dict[str, Any] = None,
+        implicit_targeting_by_type: Dict[str, Any] = None,
+        appliance_ids: List[Any] = None,
+    ) -> None:
+        """
+        Initialize an AlexaExpandedGroup object.
+
+        Args:
+            name (str): The name of the group.
+            group_id (str): The group's unique identifier.
+            entity_id (str): The entityId field.
+            entity_type (str): The entityType field.
+            group_type (str): The groupType field.
+            child_ids (List[str], optional): List of child IDs.
+            defaults (List[Any], optional): Defaults list.
+            associated_unit_ids (List[str], optional): Associated unit IDs.
+            default_metadata_by_type (Dict[str, Any], optional): Metadata by type.
+            implicit_targeting_by_type (Dict[str, Any], optional): Implicit targeting by type.
+            appliance_ids (List[Any], optional): List of appliance IDs.
+        """
+        super().__init__(name, group_id)
+        self.entity_id: str = entity_id
+        self.entity_type: str = entity_type
+        self.group_type: str = group_type
+        self.child_ids: List[str] = child_ids if child_ids is not None else []
+        self.defaults: List[Any] = defaults if defaults is not None else []
+        self.associated_unit_ids: List[str] = associated_unit_ids if associated_unit_ids is not None else []
+        self.default_metadata_by_type: Dict[str, Any] = default_metadata_by_type if default_metadata_by_type is not None else {}
+        self.implicit_targeting_by_type: Dict[str, Any] = implicit_targeting_by_type if implicit_targeting_by_type is not None else {}
+        self.appliance_ids: List[Any] = appliance_ids if appliance_ids is not None else []
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the AlexaExpandedGroup object to a dictionary suitable for PUT requests.
+
+        Returns:
+            Dict[str, Any]: Dictionary representation of the group, matching the Alexa API PUT payload.
+        """
+        return {
+            "entityId": self.entity_id,
+            "id": self.id,
+            "name": self.name,
+            "entityType": self.entity_type,
+            "groupType": self.group_type,
+            "childIds": self.child_ids,
+            "defaults": self.defaults,
+            "associatedUnitIds": self.associated_unit_ids,
+            "defaultMetadataByType": self.default_metadata_by_type,
+            "implicitTargetingByType": self.implicit_targeting_by_type,
+            "applianceIds": self.appliance_ids,
+        }

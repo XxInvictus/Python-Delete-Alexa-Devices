@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 
 from alexa_manager.config import (
     config,
+    DRY_RUN,
 )
 from alexa_manager.models import (
     AlexaEntities,
@@ -73,6 +74,16 @@ logging.basicConfig(
 )
 
 
+# Table header constants
+ID = "ID"
+DISPLAY_NAME = "Display Name"
+HA_ENTITY_ID = "HA Entity ID"
+DESCRIPTION = "Description"
+GROUP_ID = "Group ID"
+NAME = "Name"
+ALEXA_APPLIANCE_ID = "Alexa Appliance ID"
+AREA = "Area"
+
 # ------------------
 # Action Functions
 # ------------------
@@ -80,7 +91,7 @@ logging.basicConfig(
 
 def create_groups(ha_areas: Dict[str, List[str]]) -> List[Dict[str, Any]]:
     """
-    Create Alexa groups for each Home Assistant area, using mapped Alexa Application IDs as applianceIds.
+    Create Alexa groups for each Home Assistant area, using mapped Alexa Application IDs as appliance_ids.
 
     Args:
         ha_areas (Dict[str, List[str]]): Dictionary mapping area names to lists of HA entity IDs.
@@ -95,9 +106,9 @@ def create_groups(ha_areas: Dict[str, List[str]]) -> List[Dict[str, Any]]:
     def per_area(area_name, collector):
         alexa_ids = area_to_alexa_ids.get(area_name, [])
         # Format as string-escaped JSONs
-        applianceIds = [json.dumps({"applianceId": aid}) for aid in alexa_ids]
+        appliance_ids = [json.dumps({"applianceId": aid}) for aid in alexa_ids]
         group = AlexaGroup(name=area_name)
-        group.create_data["applianceIds"] = applianceIds
+        group.create_data["applianceIds"] = appliance_ids
         create_success = group.create()
         if not create_success:
             collector.append({"name": group.name})
@@ -258,7 +269,15 @@ Examples:
         action="store_true",
         help="Run in Alexa Only mode (skip all Home Assistant dependent steps).",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be performed without making any changes. Only GET requests are executed; DELETE, PUT, POST actions are mocked and displayed."
+    )
     args = parser.parse_args()
+    # Set global dry-run flag
+    import alexa_manager.config as config_mod
+    config_mod.DRY_RUN = args.dry_run
 
     alexa_only = args.alexa_only
 
@@ -276,14 +295,14 @@ Examples:
             print_table(
                 [
                     {
-                        "ID": e.id,
-                        "Display Name": e.display_name,
-                        "HA Entity ID": e.ha_entity_id,
-                        "Description": e.description,
+                        ID: e.id,
+                        DISPLAY_NAME: e.display_name,
+                        HA_ENTITY_ID: e.ha_entity_id,
+                        DESCRIPTION: e.description,
                     }
                     for e in entities.entities
                 ],
-                ["ID", "Display Name", "HA Entity ID", "Description"],
+                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
                 "Alexa Skill Entities",
             )
         if args.get_endpoints:
@@ -291,21 +310,21 @@ Examples:
             print_table(
                 [
                     {
-                        "ID": e.id,
-                        "Display Name": e.display_name,
-                        "HA Entity ID": e.ha_entity_id,
-                        "Description": e.description,
+                        ID: e.id,
+                        DISPLAY_NAME: e.display_name,
+                        HA_ENTITY_ID: e.ha_entity_id,
+                        DESCRIPTION: e.description,
                     }
                     for e in endpoints.entities
                 ],
-                ["ID", "Display Name", "HA Entity ID", "Description"],
+                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
                 "Alexa GraphQL Endpoints",
             )
         if args.get_groups:
             groups = get_groups()
             print_table(
-                [{"Group ID": g.id, "Name": g.name} for g in groups.groups],
-                ["Group ID", "Name"],
+                [{GROUP_ID: g.id, NAME: g.name} for g in groups.groups],
+                [GROUP_ID, NAME],
                 "Alexa Groups",
             )
         if args.get_ha_areas or args.get_ha_mapping:
@@ -313,10 +332,10 @@ Examples:
             if args.get_ha_areas:
                 print_table(
                     [
-                        {"Name": area, "HA Entity IDs": ", ".join(ids)}
+                        {NAME: area, f"HA Entity IDs": ", ".join(ids)}
                         for area, ids in ha_areas.items()
                     ],
-                    ["Name", "HA Entity IDs"],
+                    [NAME, "HA Entity IDs"],
                     "Home Assistant Areas",
                 )
             if args.get_ha_mapping:
@@ -328,14 +347,14 @@ Examples:
                     for ha_id, alexa_id in zip(ha_ids, alexa_ids):
                         mapping_rows.append(
                             {
-                                "Area": area,
-                                "HA Entity ID": ha_id,
-                                "Alexa Appliance ID": alexa_id,
+                                AREA: area,
+                                HA_ENTITY_ID: ha_id,
+                                ALEXA_APPLIANCE_ID: alexa_id,
                             }
                         )
                 print_table(
                     mapping_rows,
-                    ["Area", "HA Entity ID", "Alexa Appliance ID"],
+                    [AREA, HA_ENTITY_ID, ALEXA_APPLIANCE_ID],
                     "HA Entity to Alexa Appliance Mapping",
                 )
         return

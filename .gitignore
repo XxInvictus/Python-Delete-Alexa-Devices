@@ -1,2 +1,7 @@
-graphql.json
-data.json
+*_debug.json
+user_config.json
+user_config.toml
+.vscode/
+.idea/
+.venv/
+__pycache__/

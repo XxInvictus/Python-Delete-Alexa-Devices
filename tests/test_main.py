@@ -155,3 +155,37 @@ def test_main_alexa_only_no_args(monkeypatch, caplog):
     assert not called["create_groups"]
     assert not called["get_ha_areas"]
     assert any("Alexa Only mode" in r for r in caplog.messages)
+
+
+def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
+    """
+    Test that create_groups_from_areas skips areas listed in ignored_ha_areas.
+    """
+    # Mock HA areas
+    ha_areas = {
+        "Living Room": ["entity_1", "entity_2"],
+        "Garage": ["entity_3"],
+        "Kitchen": ["entity_4"],
+    }
+    # Mock config with ignored_ha_areas
+    monkeypatch.setattr(main, "ignored_ha_areas", ["Garage"])
+    # Patch dependencies
+    monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MagicMock())
+    monkeypatch.setattr(main, "map_ha_entities_to_alexa_ids", lambda areas, endpoints: {k: v for k, v in areas.items()})
+    created_groups = []
+    class DummyAlexaGroup:
+        def __init__(self, name):
+            self.name = name
+            self.create_data = {}
+        def create(self):
+            created_groups.append(self.name)
+            return True
+    monkeypatch.setattr(main, "AlexaGroup", DummyAlexaGroup)
+    monkeypatch.setattr(main, "convert_ha_area_name", lambda name: name)
+    monkeypatch.setattr(main, "run_with_progress_bar", lambda areas, title, fn, collector: [fn(area, collector) for area in areas])
+    # Call function
+    main.create_groups_from_areas(ha_areas, {})
+    # Assert ignored area not processed
+    assert "Garage" not in created_groups
+    assert "Living Room" in created_groups
+    assert "Kitchen" in created_groups

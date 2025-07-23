@@ -124,7 +124,9 @@ class AlexaEntity:
         """
         url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
         if DRY_RUN:
-            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
+            )
             return True  # Simulate success
         if DO_NOT_DELETE:
             logger.info(f"Skipping deletion of entity {self.id} ({self.display_name})")
@@ -281,9 +283,13 @@ class AlexaGroup:
         """
         url = URLS.get("CREATE_GROUPS", "")
         if DRY_RUN:
-            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{self.name}[/cyan] with data: [green]{self.create_data}[/green] at [green]{url}[/green]")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{self.name}[/cyan] with data: [green]{self.create_data}[/green] at [green]{url}[/green]"
+            )
             return True  # Simulate success
-        response = requests.post(url, headers=ALEXA_HEADERS, json=self.create_data, timeout=10)
+        response = requests.post(
+            url, headers=ALEXA_HEADERS, json=self.create_data, timeout=10
+        )
         if DEBUG:
             logger.debug(f"Create group response status code: {response.status_code}")
             logger.debug(f"Create group response text: {response.text}")
@@ -302,7 +308,9 @@ class AlexaGroup:
         """
         url = f"{URLS.get('DELETE_GROUPS', '')}{self.id}"
         if DRY_RUN:
-            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{url}[/green]")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
+            )
             return True  # Simulate success
         response = requests.delete(url, headers=ALEXA_HEADERS, timeout=10)
         if DEBUG:
@@ -368,10 +376,18 @@ class AlexaExpandedGroup(AlexaGroup):
         self.group_type: str = group_type
         self.child_ids: List[str] = child_ids if child_ids is not None else []
         self.defaults: List[Any] = defaults if defaults is not None else []
-        self.associated_unit_ids: List[str] = associated_unit_ids if associated_unit_ids is not None else []
-        self.default_metadata_by_type: Dict[str, Any] = default_metadata_by_type if default_metadata_by_type is not None else {}
-        self.implicit_targeting_by_type: Dict[str, Any] = implicit_targeting_by_type if implicit_targeting_by_type is not None else {}
-        self.appliance_ids: List[Any] = appliance_ids if appliance_ids is not None else []
+        self.associated_unit_ids: List[str] = (
+            associated_unit_ids if associated_unit_ids is not None else []
+        )
+        self.default_metadata_by_type: Dict[str, Any] = (
+            default_metadata_by_type if default_metadata_by_type is not None else {}
+        )
+        self.implicit_targeting_by_type: Dict[str, Any] = (
+            implicit_targeting_by_type if implicit_targeting_by_type is not None else {}
+        )
+        self.appliance_ids: List[Any] = (
+            appliance_ids if appliance_ids is not None else []
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """

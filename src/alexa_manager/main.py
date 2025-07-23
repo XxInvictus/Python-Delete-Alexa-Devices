@@ -20,7 +20,6 @@ from typing import Any, Dict, List
 
 from alexa_manager.config import (
     config,
-    DRY_RUN,
 )
 from alexa_manager.models import (
     AlexaEntities,
@@ -272,11 +271,12 @@ Examples:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would be performed without making any changes. Only GET requests are executed; DELETE, PUT, POST actions are mocked and displayed."
+        help="Show what would be performed without making any changes. Only GET requests are executed; DELETE, PUT, POST actions are mocked and displayed.",
     )
     args = parser.parse_args()
     # Set global dry-run flag
     import alexa_manager.config as config_mod
+
     config_mod.DRY_RUN = args.dry_run
 
     alexa_only = args.alexa_only
@@ -332,7 +332,7 @@ Examples:
             if args.get_ha_areas:
                 print_table(
                     [
-                        {NAME: area, f"HA Entity IDs": ", ".join(ids)}
+                        {NAME: area, "HA Entity IDs": ", ".join(ids)}
                         for area, ids in ha_areas.items()
                     ],
                     [NAME, "HA Entity IDs"],

@@ -88,6 +88,7 @@ uv run alexa_manager --help
 | `--get-ha-mapping`     | Output mapping of HA entity IDs to Alexa Application IDs for each area.                       |
 | `--alexa-only`         | Run in Alexa Only mode (skip all Home Assistant dependent steps).                             |
 | `--dry-run`           | Simulate all destructive actions. Only GET requests are performed; DELETE, PUT, POST actions are displayed (using Rich) and not executed. Useful for previewing what would happen without making changes. |
+| `--interactive`        | Enable interactive mode for batch actions, requiring user confirmation.                        |
 | `--help`               | Show help message and exit.                                                                   |
 
 **Examples:**
@@ -99,6 +100,8 @@ uv run alexa_manager --get-ha-areas
 uv run alexa_manager --alexa-only
 uv run alexa_manager --delete-entities --dry-run
 uv run alexa_manager --create-groups --dry-run
+python main.py --get-ha-mapping
+python main.py --interactive --delete-entities
 ```
 
 **Alexa Only Mode:**
@@ -118,6 +121,16 @@ uv run alexa_manager --create-groups --dry-run
 - DELETE, PUT, POST actions are displayed using Rich and not executed.
 - If a step depends on the result of a destructive action, the result is mocked for workflow continuity.
 - Output is verbose and clearly indicates simulated actions.
+
+**Interactive Mode:**
+Interactive mode can be enabled with `--interactive` for actions that modify or delete entities, groups, or endpoints. In this mode, the script will prompt for confirmation before proceeding with each action. This provides an additional safety net to prevent accidental changes.
+
+To use interactive mode:
+```sh
+uv run alexa_manager --delete-entities --interactive
+uv run alexa_manager --create-groups --interactive
+```
+In interactive mode, you will be asked to confirm each action by typing `yes` or `no`. Review the proposed changes carefully before confirming.
 
 ## Testing
 

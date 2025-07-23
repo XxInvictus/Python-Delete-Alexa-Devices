@@ -297,6 +297,10 @@ def put_alexa_group(
 
     Returns:
         bool: True if update was successful, False otherwise.
+
+    Note:
+        This function does not handle user interaction or confirmation prompts.
+        Interactive confirmation should be handled externally (e.g., in main.py).
     """
     from alexa_manager.models import AlexaExpandedGroup
 
@@ -438,6 +442,7 @@ def create_alexa_group_for_ha_area(
         implicit_targeting_by_type={},
         appliance_ids=appliance_ids,
     )
+    # Removed interactive confirmation logic. Confirmation should be handled externally.
     try:
         response = requests.post(
             url_base, headers=headers, json=new_group.to_dict(), timeout=15

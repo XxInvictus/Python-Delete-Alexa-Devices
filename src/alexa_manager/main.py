@@ -92,8 +92,28 @@ AREA = "Area"
 # ------------------
 
 
+def batch_confirm_action(actions: List[str], action_type: str) -> bool:
+    """
+    Prompt the user for confirmation before performing a batch of API actions.
+
+    Args:
+        actions (List[str]): List of action descriptions.
+        action_type (str): Type of action (e.g., 'delete', 'create').
+
+    Returns:
+        bool: True if the user confirms, False otherwise.
+    """
+    print("\nCONFIRMATION REQUIRED:")
+    print(f"You are about to {action_type} the following items:")
+    for action in actions:
+        print(f"  - {action}")
+    print("Proceed with all? (y/n): ", end="", flush=True)
+    response = input().strip().lower()
+    return response == "y"
+
+
 def create_groups_from_areas(
-    ha_areas: Dict[str, Any], config: Dict[str, Any]
+    ha_areas: Dict[str, Any], config: Dict[str, Any], interactive_mode: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Create Alexa groups from Home Assistant areas, excluding those in the ignore list.
@@ -101,6 +121,7 @@ def create_groups_from_areas(
     Args:
         ha_areas (Dict[str, Any]): Home Assistant areas.
         config (Dict[str, Any]): Configuration dictionary.
+        interactive_mode (bool): If True, require user confirmation before creation.
 
     Returns:
         List[Dict[str, Any]]: List of failed creations.
@@ -115,6 +136,15 @@ def create_groups_from_areas(
     failed_creations: List[Dict[str, Any]] = []
     endpoints = get_graphql_endpoint_entities()
     area_to_alexa_ids = map_ha_entities_to_alexa_ids(filtered_areas, endpoints)
+
+    actions = [
+        f"{convert_ha_area_name(area_name)} (Appliance IDs: {area_to_alexa_ids.get(area_name, [])})"
+        for area_name in filtered_areas.keys()
+    ]
+    if not DRY_RUN and actions and interactive_mode:
+        if not batch_confirm_action(actions, "create"):
+            print("Creation cancelled by user.")
+            return []
 
     def per_area(area_name: str, collector: List[Dict[str, Any]]):
         alexa_ids = area_to_alexa_ids.get(area_name, [])
@@ -147,12 +177,15 @@ def create_groups_from_areas(
     return failed_creations
 
 
-def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
+def delete_entities(
+    entities: AlexaEntities, interactive_mode: bool = False
+) -> List[Dict[str, Any]]:
     """
     Send a DELETE request to remove entities/endpoints related to the Amazon Alexa skill.
 
     Args:
         entities (AlexaEntities): AlexaEntities object containing entities to delete.
+        interactive_mode (bool): If True, require user confirmation before deletion.
 
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
@@ -160,6 +193,15 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
     from alexa_manager.config import DRY_RUN
 
     failed_deletions: List[Dict[str, Any]] = []
+    # Prepare batch confirmation
+    actions = [
+        f"{entity.display_name} (ID: {entity.id}, Device ID: {entity.delete_id})"
+        for entity in entities.entities
+    ]
+    if not DRY_RUN and actions and interactive_mode:
+        if not batch_confirm_action(actions, "delete"):
+            print("Deletion cancelled by user.")
+            return []
 
     def per_entity(entity, collector):
         url = f"https://{config['ALEXA_HOST']}/api/phoenix/appliance/{entity.delete_id}"
@@ -183,7 +225,10 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
             )
 
     run_with_progress_bar(
-        entities.entities, "Deleting Alexa entities...", per_entity, failed_deletions
+        list(entities.entities),
+        "Deleting Alexa entities...",
+        per_entity,
+        failed_deletions,
     )
     if failed_deletions:
         logger.warning("\nFailed to delete the following entities:")
@@ -194,12 +239,15 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
     return failed_deletions
 
 
-def delete_groups(groups: AlexaGroups) -> List[Dict[str, Any]]:
+def delete_groups(
+    groups: AlexaGroups, interactive_mode: bool = False
+) -> List[Dict[str, Any]]:
     """
     Send a DELETE request to remove all Alexa groups.
 
     Args:
         groups (AlexaGroups): AlexaGroups object containing groups to delete.
+        interactive_mode (bool): If True, require user confirmation before deletion.
 
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
@@ -207,6 +255,12 @@ def delete_groups(groups: AlexaGroups) -> List[Dict[str, Any]]:
     from alexa_manager.config import DRY_RUN
 
     failed_deletions: List[Dict[str, Any]] = []
+    # Prepare batch confirmation
+    actions = [f"{group.name} (ID: {group.id})" for group in groups.groups]
+    if not DRY_RUN and actions and interactive_mode:
+        if not batch_confirm_action(actions, "delete"):
+            print("Deletion cancelled by user.")
+            return []
 
     def per_group(group, collector):
         url = f"https://{config['ALEXA_HOST']}/api/phoenix/group/{group.id}"
@@ -223,7 +277,7 @@ def delete_groups(groups: AlexaGroups) -> List[Dict[str, Any]]:
             collector.append({"name": group.name, "group_id": group.id})
 
     run_with_progress_bar(
-        groups.groups, "Deleting Alexa groups...", per_group, failed_deletions
+        list(groups.groups), "Deleting Alexa groups...", per_group, failed_deletions
     )
     if failed_deletions:
         logger.warning("\nFailed to delete the following groups:")
@@ -311,6 +365,11 @@ Examples:
         "--dry-run",
         action="store_true",
         help="Show what would be performed without making any changes. Only GET requests are executed; DELETE, PUT, POST actions are mocked and displayed.",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Enable interactive mode for batch actions, requiring user confirmation.",
     )
     args = parser.parse_args()
     # Set global dry-run flag
@@ -414,18 +473,22 @@ Examples:
     failed_group_creations = []
 
     if args.delete_entities or do_all:
-        failed_entity_deletions = delete_entities(get_entities())
+        failed_entity_deletions = delete_entities(get_entities(), args.interactive)
     if args.delete_endpoints or do_all:
-        failed_endpoint_deletions = delete_entities(get_graphql_endpoint_entities())
+        failed_endpoint_deletions = delete_entities(
+            get_graphql_endpoint_entities(), args.interactive
+        )
     if args.delete_groups or do_all:
-        failed_group_deletions = delete_groups(get_groups())
+        failed_group_deletions = delete_groups(get_groups(), args.interactive)
     if args.create_groups or do_all:
         if alexa_only:
             logger.info(
                 "Alexa Only mode: Skipping Home Assistant area-based group creation."
             )
         else:
-            failed_group_creations = create_groups_from_areas(get_ha_areas(), config)
+            failed_group_creations = create_groups_from_areas(
+                get_ha_areas(), config, args.interactive
+            )
 
     if (
         failed_entity_deletions

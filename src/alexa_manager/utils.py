@@ -110,3 +110,36 @@ def print_table(data: List[dict], columns: List[str], title: str) -> None:
         console.print(f"[yellow]No {title.lower()} found.[/yellow]")
     else:
         console.print(table)
+
+
+def convert_ha_area_name(area_name: str) -> str:
+    """
+    Convert a Home Assistant Area name for Alexa Group comparison/use.
+
+    Replaces underscores with spaces and converts to Title Case.
+    Handles edge cases such as empty strings and multiple underscores.
+
+    Args:
+        area_name (str): The original HA Area name.
+
+    Returns:
+        str: The converted Area name in Title Case with spaces.
+    """
+    if not isinstance(area_name, str):
+        raise TypeError("area_name must be a string")
+    # Replace underscores with spaces, strip leading/trailing spaces, and convert to Title Case
+    return area_name.replace('_', ' ').strip().title()
+
+
+def normalize_area_name(area_name: str) -> str:
+    """
+    Normalize area names for comparison between HA and Alexa formats.
+    Converts to lowercase, replaces underscores with spaces, and strips whitespace.
+
+    Args:
+        area_name (str): The area name to normalize.
+
+    Returns:
+        str: Normalized area name.
+    """
+    return area_name.replace('_', ' ').strip().lower()

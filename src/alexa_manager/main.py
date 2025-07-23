@@ -20,6 +20,8 @@ from typing import Any, Dict, List
 
 from alexa_manager.config import (
     config,
+    DRY_RUN,
+    IGNORED_HA_AREAS,
 )
 from alexa_manager.models import (
     AlexaEntities,
@@ -29,6 +31,8 @@ from alexa_manager.models import (
 from alexa_manager.utils import (
     run_with_progress_bar,
     print_table,
+    convert_ha_area_name,
+    normalize_area_name,
 )
 from alexa_manager.api import (
     get_entities,
@@ -71,7 +75,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
+logging.basicConfig(level=logging.DEBUG)  # Force debug output to console
 
 # Table header constants
 ID = "ID"
@@ -88,32 +92,44 @@ AREA = "Area"
 # ------------------
 
 
-def create_groups(ha_areas: Dict[str, List[str]]) -> List[Dict[str, Any]]:
+def create_groups_from_areas(ha_areas: Dict[str, Any], config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Create Alexa groups for each Home Assistant area, using mapped Alexa Application IDs as appliance_ids.
+    Create Alexa groups from Home Assistant areas, excluding those in the ignore list.
 
     Args:
-        ha_areas (Dict[str, List[str]]): Dictionary mapping area names to lists of HA entity IDs.
+        ha_areas (Dict[str, Any]): Home Assistant areas.
+        config (Dict[str, Any]): Configuration dictionary.
 
     Returns:
-        List[Dict[str, Any]]: A list of dictionaries containing information about failed creations.
+        List[Dict[str, Any]]: List of failed creations.
     """
+    # Filter out ignored areas using normalized names (already normalized in config.py)
+    from alexa_manager.utils import normalize_area_name
+    filtered_areas = {
+        k: v for k, v in ha_areas.items()
+        if normalize_area_name(k) not in IGNORED_HA_AREAS
+    }
     failed_creations: List[Dict[str, Any]] = []
     endpoints = get_graphql_endpoint_entities()
-    area_to_alexa_ids = map_ha_entities_to_alexa_ids(ha_areas, endpoints)
+    area_to_alexa_ids = map_ha_entities_to_alexa_ids(filtered_areas, endpoints)
 
-    def per_area(area_name, collector):
+    def per_area(area_name: str, collector: List[Dict[str, Any]]):
         alexa_ids = area_to_alexa_ids.get(area_name, [])
-        # Format as string-escaped JSONs
         appliance_ids = [json.dumps({"applianceId": aid}) for aid in alexa_ids]
-        group = AlexaGroup(name=area_name)
+        converted_name = convert_ha_area_name(area_name)
+        group = AlexaGroup(name=converted_name)
         group.create_data["applianceIds"] = appliance_ids
+        if DRY_RUN:
+            from rich.console import Console
+            console = Console()
+            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{group.name}[/cyan] with appliance IDs: [green]{appliance_ids}[/green]")
+            return
         create_success = group.create()
         if not create_success:
             collector.append({"name": group.name})
 
     run_with_progress_bar(
-        list(ha_areas.keys()),
+        list(filtered_areas.keys()),
         "Creating Alexa groups from HA areas...",
         per_area,
         failed_creations,
@@ -135,9 +151,17 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
     """
+    from alexa_manager.config import DRY_RUN
     failed_deletions: List[Dict[str, Any]] = []
-
     def per_entity(entity, collector):
+        url = f"https://{config['ALEXA_HOST']}/api/phoenix/appliance/{entity.delete_id}"
+        if DRY_RUN:
+            from rich.console import Console
+            console = Console()
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{entity.display_name}[/cyan] (ID: {entity.id}) at [green]{url}[/green]"
+            )
+            return
         delete_success = entity.delete()
         if not delete_success:
             collector.append(
@@ -148,7 +172,6 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
                     "description": entity.description,
                 }
             )
-
     run_with_progress_bar(
         entities.entities, "Deleting Alexa entities...", per_entity, failed_deletions
     )
@@ -171,27 +194,25 @@ def delete_groups(groups: AlexaGroups) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
     """
+    from alexa_manager.config import DRY_RUN
     failed_deletions: List[Dict[str, Any]] = []
-
     def per_group(group, collector):
+        url = f"https://{config['ALEXA_HOST']}/api/phoenix/group/{group.id}"
+        if DRY_RUN:
+            from rich.console import Console
+            console = Console()
+            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{group.name}[/cyan] (ID: {group.id}) at [green]{url}[/green]")
+            return
         delete_success = group.delete()
         if not delete_success:
-            collector.append(
-                {
-                    "name": group.name,
-                    "group_id": group.id,
-                }
-            )
-
+            collector.append({"name": group.name, "group_id": group.id})
     run_with_progress_bar(
         groups.groups, "Deleting Alexa groups...", per_group, failed_deletions
     )
     if failed_deletions:
         logger.warning("\nFailed to delete the following groups:")
         for failure in failed_deletions:
-            logger.warning(
-                f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'"
-            )
+            logger.warning(f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'")
     return failed_deletions
 
 
@@ -278,6 +299,8 @@ Examples:
     import alexa_manager.config as config_mod
 
     config_mod.DRY_RUN = args.dry_run
+    global DRY_RUN
+    DRY_RUN = args.dry_run
 
     alexa_only = args.alexa_only
 
@@ -384,7 +407,7 @@ Examples:
                 "Alexa Only mode: Skipping Home Assistant area-based group creation."
             )
         else:
-            failed_group_creations = create_groups(get_ha_areas())
+            failed_group_creations = create_groups_from_areas(get_ha_areas(), config)
 
     if (
         failed_entity_deletions

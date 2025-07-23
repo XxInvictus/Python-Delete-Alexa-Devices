@@ -112,9 +112,6 @@ class AlexaEntity:
         """
         return f"AlexaEntity(id={self.id}, displayName={self.display_name}, description={self.description}, appliance_id={self.appliance_id})"
 
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
-    )
     def delete(self) -> bool:
         """
         Delete the Alexa entity using the API, or simulate if DRY_RUN is True.
@@ -124,10 +121,32 @@ class AlexaEntity:
         """
         url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
         if DRY_RUN:
-            console.print(
-                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
-            )
-            return True  # Simulate success
+            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]")
+            # Simulate a successful delete response with status 204
+            response_status = 204
+            if response_status == 204:
+                # Simulate the check for deletion (404)
+                check_status = 404
+                if check_status == 404:
+                    return True
+                else:
+                    raise requests.HTTPError(
+                        f"Entity {self.id} was not deleted. Status code: {check_status}, Response: [DRY RUN] Simulated deleted entity."
+                    )
+            else:
+                raise requests.HTTPError(
+                    f"Entity {self.id} deletion failed. Status code: {response_status}, Response: [DRY RUN] Simulated delete."
+                )
+        return self._delete_with_retry()
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
+    )
+    def _delete_with_retry(self) -> bool:
+        """
+        Internal method to perform the actual DELETE request with retry logic.
+        """
+        url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
         if DO_NOT_DELETE:
             logger.info(f"Skipping deletion of entity {self.id} ({self.display_name})")
             return True
@@ -136,6 +155,7 @@ class AlexaEntity:
             logger.debug(f"Delete response status code: {response.status_code}")
             logger.debug(f"Delete response text: {response.text}")
         response.raise_for_status()
+        # Only treat 204 as success for real API calls
         if response.status_code == 204:
             return self._check_deleted()
         else:
@@ -159,11 +179,20 @@ class AlexaEntity:
             requests.HTTPError: If entity is not deleted.
         """
         url = f"https://{config['ALEXA_HOST']}/api/smarthome/v1/presentation/devices/control/{self.id}"
-        response = requests.get(url, headers=ALEXA_HEADERS, timeout=10)
+        if DRY_RUN:
+            # Simulate a 404 response for dry-run
+            class MockResponse:
+                status_code = 404
+                text = "[DRY RUN] Simulated deleted entity."
+            response = MockResponse()
+        else:
+            response = requests.get(url, headers=ALEXA_HEADERS, timeout=10)
         if DEBUG:
             logger.debug(f"Check delete response status code: {response.status_code}")
             logger.debug(f"Check delete response text: {response.text}")
-        if response.status_code != 404:
+        if response.status_code == 404:
+            return True
+        else:
             raise requests.HTTPError(
                 f"Entity {self.id} was not deleted. Status code: {response.status_code}, Response: {response.text}"
             )
@@ -296,9 +325,6 @@ class AlexaGroup:
         response.raise_for_status()
         return response.status_code == 201
 
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
-    )
     def delete(self) -> bool:
         """
         Delete the Alexa group via the API, or simulate if DRY_RUN is True.
@@ -306,12 +332,44 @@ class AlexaGroup:
         Returns:
             bool: True if deletion was successful or simulated, False otherwise.
         """
-        url = f"{URLS.get('DELETE_GROUPS', '')}{self.id}"
+        # Failsafe: Always respect DRY_RUN at the very start
         if DRY_RUN:
+            if DEBUG:
+                logger.debug(f"[FAILSAFE] DRY_RUN is enabled at start of delete() for group: {self.name} (ID: {self.id})")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{URLS.get('DELETE_GROUP', '')}{self.id}[/green]"
+            )
+            return True
+        # Debug output to confirm DRY_RUN value
+        if DEBUG:
+            logger.debug(f"delete() called for group: {self.name} (ID: {self.id}), DRY_RUN={DRY_RUN}")
+        base_url = URLS.get('DELETE_GROUP', '')
+        url = f"{base_url}{self.id}"
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = f"https://{url}"
+        if DRY_RUN:
+            # Dry run mode: do not make any network requests or retries
+            if DEBUG:
+                logger.debug(f"DRY_RUN is enabled. Skipping actual HTTP DELETE for group: {self.name} (ID: {self.id})")
             console.print(
                 f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
             )
             return True  # Simulate success
+        # Only call _delete_with_retry if not in dry run mode
+        return self._delete_with_retry(url)
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
+    )
+    def _delete_with_retry(self, url: str) -> bool:
+        """
+        Internal method to perform the actual DELETE request with retry logic.
+        Prevents network request if DRY_RUN is set (failsafe).
+        """
+        if DRY_RUN:
+            if DEBUG:
+                logger.debug(f"_delete_with_retry called in DRY_RUN mode for URL: {url}. Skipping network request.")
+            return True
         response = requests.delete(url, headers=ALEXA_HEADERS, timeout=10)
         if DEBUG:
             logger.debug(f"Delete group response status code: {response.status_code}")

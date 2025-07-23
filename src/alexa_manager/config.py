@@ -121,6 +121,20 @@ def load_config(
     return config
 
 
+def normalize_area_name(area_name: str) -> str:
+    """
+    Normalize area names for comparison between HA and Alexa formats.
+    Converts to lowercase, replaces underscores with spaces, and strips whitespace.
+
+    Args:
+        area_name (str): The area name to normalize.
+
+    Returns:
+        str: Normalized area name.
+    """
+    return area_name.replace('_', ' ').strip().lower()
+
+
 # Load config and constants
 config: Dict = load_config()
 
@@ -167,3 +181,6 @@ HA_HEADERS: Dict[str, str] = {
 }
 
 DRY_RUN: bool = False  # Global dry-run flag, set by main.py
+
+# Use normalize_area_name here to normalize IGNORED_HA_AREAS
+IGNORED_HA_AREAS = [normalize_area_name(name) for name in config.get("IGNORED_HA_AREAS", [])]

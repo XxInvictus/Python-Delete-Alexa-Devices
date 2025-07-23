@@ -23,12 +23,12 @@ A Python tool for managing Amazon Alexa devices, entities, and groups via the Al
 1. **Python Version:** Requires Python 3.13 or newer.
 2. **Install dependencies using [uv](https://github.com/astral-sh/uv):**
    ```sh
-   uv install
+   uv python install
    uv sync
    ```
    Or, to use the lockfile:
    ```sh
-   uv sync --use-lock
+   uv sync --frozen
    ```
    > **Note:** `uv` installs in editable mode by default. Use only native `uv` commands for dependency management. Avoid using `uv pip` except for legacy compatibility.
 

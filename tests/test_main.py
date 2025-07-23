@@ -45,9 +45,17 @@ def test_main_no_args(monkeypatch):
     """
     monkeypatch.setattr(sys, "argv", ["main.py"])
     called = {}
-    monkeypatch.setattr(main, "delete_entities", lambda x: called.update({"delete_entities": True}) or [])
-    monkeypatch.setattr(main, "delete_groups", lambda x: called.update({"delete_groups": True}) or [])
-    monkeypatch.setattr(main, "create_groups", lambda x: called.update({"create_groups": True}) or [])
+    monkeypatch.setattr(
+        main,
+        "delete_entities",
+        lambda x: called.update({"delete_entities": True}) or [],
+    )
+    monkeypatch.setattr(
+        main, "delete_groups", lambda x: called.update({"delete_groups": True}) or []
+    )
+    monkeypatch.setattr(
+        main, "create_groups", lambda x: called.update({"create_groups": True}) or []
+    )
     monkeypatch.setattr(main, "get_entities", lambda: MagicMock(entities=[]))
     monkeypatch.setattr(
         main, "get_graphql_endpoint_entities", lambda: MagicMock(entities=[])
@@ -87,8 +95,10 @@ def test_main_fatal_error(monkeypatch):
     Test main CLI handles fatal error gracefully.
     """
     monkeypatch.setattr(sys, "argv", ["main.py"])
+
     def raise_error(*a, **k):
         raise Exception("fatal")
+
     monkeypatch.setattr(main, "get_entities", lambda: None)
     monkeypatch.setattr(main, "delete_entities", raise_error)
     with pytest.raises(Exception) as excinfo:
@@ -128,10 +138,15 @@ def test_main_alexa_only_no_args(monkeypatch, caplog):
     """
     import sys
     from alexa_manager.models import AlexaEntity, AlexaGroup
+
     monkeypatch.setattr(sys, "argv", ["main.py", "--alexa-only"])
     called = {"create_groups": False, "get_ha_areas": False}
-    monkeypatch.setattr(main, "create_groups", lambda x: called.update({"create_groups": True}) or [])
-    monkeypatch.setattr(main, "get_ha_areas", lambda: called.update({"get_ha_areas": True}) or {})
+    monkeypatch.setattr(
+        main, "create_groups", lambda x: called.update({"create_groups": True}) or []
+    )
+    monkeypatch.setattr(
+        main, "get_ha_areas", lambda: called.update({"get_ha_areas": True}) or {}
+    )
     # Patch AlexaEntity.delete to avoid real API calls
     monkeypatch.setattr(AlexaEntity, "delete", lambda self: True)
     monkeypatch.setattr(AlexaGroup, "delete", lambda self: True)

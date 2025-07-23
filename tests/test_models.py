@@ -17,7 +17,9 @@ from unittest.mock import patch
 
 class DummyEntity(AlexaEntity):
     def __init__(self):
-        super().__init__(entity_id="dummy_id", display_name="Dummy", description="Dummy desc")
+        super().__init__(
+            entity_id="dummy_id", display_name="Dummy", description="Dummy desc"
+        )
 
 
 def test_alexa_entity_repr():

@@ -381,7 +381,9 @@ def update_alexa_groups_batch(
         group_id = update.get("group_id")
         updated_fields = update.get("updated_fields", {})
         try:
-            success = update_alexa_group(group_id, updated_fields, groups, url_base, headers)
+            success = update_alexa_group(
+                group_id, updated_fields, groups, url_base, headers
+            )
             results[group_id] = success
         except Exception as e:
             logger.error(f"Batch update failed for group {group_id}: {e}")
@@ -390,8 +392,7 @@ def update_alexa_groups_batch(
 
 
 def find_missing_ha_groups(
-    ha_areas: Dict[str, List[str]],
-    alexa_groups: List[Dict[str, Any]]
+    ha_areas: Dict[str, List[str]], alexa_groups: List[Dict[str, Any]]
 ) -> List[str]:
     """
     Find HA areas that do not exist as Alexa groups.
@@ -408,10 +409,7 @@ def find_missing_ha_groups(
 
 
 def create_alexa_group_for_ha_area(
-    area_name: str,
-    appliance_ids: List[str],
-    url_base: str,
-    headers: Dict[str, str]
+    area_name: str, appliance_ids: List[str], url_base: str, headers: Dict[str, str]
 ) -> bool:
     """
     Create an Alexa group for a given HA area with specified appliance IDs.
@@ -426,6 +424,7 @@ def create_alexa_group_for_ha_area(
         bool: True if creation was successful, False otherwise.
     """
     from alexa_manager.models import AlexaExpandedGroup
+
     new_group = AlexaExpandedGroup(
         name=area_name,
         group_id="",
@@ -440,7 +439,9 @@ def create_alexa_group_for_ha_area(
         appliance_ids=appliance_ids,
     )
     try:
-        response = requests.post(url_base, headers=headers, json=new_group.to_dict(), timeout=15)
+        response = requests.post(
+            url_base, headers=headers, json=new_group.to_dict(), timeout=15
+        )
         return response.status_code == 200
     except Exception:
         return False
@@ -452,7 +453,7 @@ def sync_alexa_group_entities(
     mode: str,
     alexa_groups: List[Dict[str, Any]],
     url_base: str,
-    headers: Dict[str, str]
+    headers: Dict[str, str],
 ) -> str:
     """
     Sync entities in an Alexa group to match desired appliance IDs.
@@ -475,14 +476,18 @@ def sync_alexa_group_entities(
         if to_add:
             updated_ids = list(current_ids | desired_ids)
             update_fields = {"applianceIds": updated_ids}
-            success = update_alexa_group(group["id"], update_fields, alexa_groups, url_base, headers)
+            success = update_alexa_group(
+                group["id"], update_fields, alexa_groups, url_base, headers
+            )
             return "updated" if success else "error"
         else:
             return "skipped"
     elif mode == "full":
         if current_ids != desired_ids:
             update_fields = {"applianceIds": list(desired_ids)}
-            success = update_alexa_group(group["id"], update_fields, alexa_groups, url_base, headers)
+            success = update_alexa_group(
+                group["id"], update_fields, alexa_groups, url_base, headers
+            )
             return "updated" if success else "error"
         else:
             return "skipped"
@@ -521,7 +526,9 @@ def sync_ha_alexa_groups(
         missing_groups = find_missing_ha_groups(ha_areas, alexa_groups)
         for area_name in missing_groups:
             appliance_ids = ha_to_alexa.get(area_name, [])
-            if create_alexa_group_for_ha_area(area_name, appliance_ids, url_base, headers):
+            if create_alexa_group_for_ha_area(
+                area_name, appliance_ids, url_base, headers
+            ):
                 results["created"].append(area_name)
             else:
                 results["errors"].append((area_name, "Failed to create group"))
@@ -532,7 +539,9 @@ def sync_ha_alexa_groups(
             group = alexa_group_by_name.get(area_name)
             if group:
                 desired_appliance_ids = ha_to_alexa.get(area_name, [])
-                action = sync_alexa_group_entities(group, desired_appliance_ids, mode, alexa_groups, url_base, headers)
+                action = sync_alexa_group_entities(
+                    group, desired_appliance_ids, mode, alexa_groups, url_base, headers
+                )
                 if action == "updated":
                     results["updated"].append(area_name)
                 elif action == "skipped":
@@ -540,4 +549,3 @@ def sync_ha_alexa_groups(
                 elif action == "error":
                     results["errors"].append((area_name, "Failed to sync entities"))
     return results
-

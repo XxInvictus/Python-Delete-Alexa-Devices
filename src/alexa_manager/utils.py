@@ -128,7 +128,7 @@ def convert_ha_area_name(area_name: str) -> str:
     if not isinstance(area_name, str):
         raise TypeError("area_name must be a string")
     # Replace underscores with spaces, strip leading/trailing spaces, and convert to Title Case
-    return area_name.replace('_', ' ').strip().title()
+    return area_name.replace("_", " ").strip().title()
 
 
 def normalize_area_name(area_name: str) -> str:
@@ -142,4 +142,4 @@ def normalize_area_name(area_name: str) -> str:
     Returns:
         str: Normalized area name.
     """
-    return area_name.replace('_', ' ').strip().lower()
+    return area_name.replace("_", " ").strip().lower()

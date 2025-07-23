@@ -132,7 +132,7 @@ def normalize_area_name(area_name: str) -> str:
     Returns:
         str: Normalized area name.
     """
-    return area_name.replace('_', ' ').strip().lower()
+    return area_name.replace("_", " ").strip().lower()
 
 
 # Load config and constants
@@ -183,4 +183,6 @@ HA_HEADERS: Dict[str, str] = {
 DRY_RUN: bool = False  # Global dry-run flag, set by main.py
 
 # Use normalize_area_name here to normalize IGNORED_HA_AREAS
-IGNORED_HA_AREAS = [normalize_area_name(name) for name in config.get("IGNORED_HA_AREAS", [])]
+IGNORED_HA_AREAS = [
+    normalize_area_name(name) for name in config.get("IGNORED_HA_AREAS", [])
+]

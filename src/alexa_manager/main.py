@@ -92,7 +92,9 @@ AREA = "Area"
 # ------------------
 
 
-def create_groups_from_areas(ha_areas: Dict[str, Any], config: Dict[str, Any]) -> List[Dict[str, Any]]:
+def create_groups_from_areas(
+    ha_areas: Dict[str, Any], config: Dict[str, Any]
+) -> List[Dict[str, Any]]:
     """
     Create Alexa groups from Home Assistant areas, excluding those in the ignore list.
 
@@ -104,9 +106,10 @@ def create_groups_from_areas(ha_areas: Dict[str, Any], config: Dict[str, Any]) -
         List[Dict[str, Any]]: List of failed creations.
     """
     # Filter out ignored areas using normalized names (already normalized in config.py)
-    from alexa_manager.utils import normalize_area_name
+
     filtered_areas = {
-        k: v for k, v in ha_areas.items()
+        k: v
+        for k, v in ha_areas.items()
         if normalize_area_name(k) not in IGNORED_HA_AREAS
     }
     failed_creations: List[Dict[str, Any]] = []
@@ -121,8 +124,11 @@ def create_groups_from_areas(ha_areas: Dict[str, Any], config: Dict[str, Any]) -
         group.create_data["applianceIds"] = appliance_ids
         if DRY_RUN:
             from rich.console import Console
+
             console = Console()
-            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{group.name}[/cyan] with appliance IDs: [green]{appliance_ids}[/green]")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{group.name}[/cyan] with appliance IDs: [green]{appliance_ids}[/green]"
+            )
             return
         create_success = group.create()
         if not create_success:
@@ -152,11 +158,14 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
     """
     from alexa_manager.config import DRY_RUN
+
     failed_deletions: List[Dict[str, Any]] = []
+
     def per_entity(entity, collector):
         url = f"https://{config['ALEXA_HOST']}/api/phoenix/appliance/{entity.delete_id}"
         if DRY_RUN:
             from rich.console import Console
+
             console = Console()
             console.print(
                 f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{entity.display_name}[/cyan] (ID: {entity.id}) at [green]{url}[/green]"
@@ -172,6 +181,7 @@ def delete_entities(entities: AlexaEntities) -> List[Dict[str, Any]]:
                     "description": entity.description,
                 }
             )
+
     run_with_progress_bar(
         entities.entities, "Deleting Alexa entities...", per_entity, failed_deletions
     )
@@ -195,24 +205,32 @@ def delete_groups(groups: AlexaGroups) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
     """
     from alexa_manager.config import DRY_RUN
+
     failed_deletions: List[Dict[str, Any]] = []
+
     def per_group(group, collector):
         url = f"https://{config['ALEXA_HOST']}/api/phoenix/group/{group.id}"
         if DRY_RUN:
             from rich.console import Console
+
             console = Console()
-            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{group.name}[/cyan] (ID: {group.id}) at [green]{url}[/green]")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{group.name}[/cyan] (ID: {group.id}) at [green]{url}[/green]"
+            )
             return
         delete_success = group.delete()
         if not delete_success:
             collector.append({"name": group.name, "group_id": group.id})
+
     run_with_progress_bar(
         groups.groups, "Deleting Alexa groups...", per_group, failed_deletions
     )
     if failed_deletions:
         logger.warning("\nFailed to delete the following groups:")
         for failure in failed_deletions:
-            logger.warning(f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'")
+            logger.warning(
+                f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'"
+            )
     return failed_deletions
 
 

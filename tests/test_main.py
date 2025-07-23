@@ -171,18 +171,29 @@ def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
     monkeypatch.setattr(main, "ignored_ha_areas", ["Garage"])
     # Patch dependencies
     monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MagicMock())
-    monkeypatch.setattr(main, "map_ha_entities_to_alexa_ids", lambda areas, endpoints: {k: v for k, v in areas.items()})
+    monkeypatch.setattr(
+        main,
+        "map_ha_entities_to_alexa_ids",
+        lambda areas, endpoints: {k: v for k, v in areas.items()},
+    )
     created_groups = []
+
     class DummyAlexaGroup:
         def __init__(self, name):
             self.name = name
             self.create_data = {}
+
         def create(self):
             created_groups.append(self.name)
             return True
+
     monkeypatch.setattr(main, "AlexaGroup", DummyAlexaGroup)
     monkeypatch.setattr(main, "convert_ha_area_name", lambda name: name)
-    monkeypatch.setattr(main, "run_with_progress_bar", lambda areas, title, fn, collector: [fn(area, collector) for area in areas])
+    monkeypatch.setattr(
+        main,
+        "run_with_progress_bar",
+        lambda areas, title, fn, collector: [fn(area, collector) for area in areas],
+    )
     # Call function
     main.create_groups_from_areas(ha_areas, {})
     # Assert ignored area not processed

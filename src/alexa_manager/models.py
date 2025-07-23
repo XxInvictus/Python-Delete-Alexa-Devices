@@ -121,7 +121,9 @@ class AlexaEntity:
         """
         url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
         if DRY_RUN:
-            console.print(f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]")
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
+            )
             # Simulate a successful delete response with status 204
             response_status = 204
             if response_status == 204:
@@ -184,6 +186,7 @@ class AlexaEntity:
             class MockResponse:
                 status_code = 404
                 text = "[DRY RUN] Simulated deleted entity."
+
             response = MockResponse()
         else:
             response = requests.get(url, headers=ALEXA_HEADERS, timeout=10)
@@ -335,22 +338,28 @@ class AlexaGroup:
         # Failsafe: Always respect DRY_RUN at the very start
         if DRY_RUN:
             if DEBUG:
-                logger.debug(f"[FAILSAFE] DRY_RUN is enabled at start of delete() for group: {self.name} (ID: {self.id})")
+                logger.debug(
+                    f"[FAILSAFE] DRY_RUN is enabled at start of delete() for group: {self.name} (ID: {self.id})"
+                )
             console.print(
                 f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{URLS.get('DELETE_GROUP', '')}{self.id}[/green]"
             )
             return True
         # Debug output to confirm DRY_RUN value
         if DEBUG:
-            logger.debug(f"delete() called for group: {self.name} (ID: {self.id}), DRY_RUN={DRY_RUN}")
-        base_url = URLS.get('DELETE_GROUP', '')
+            logger.debug(
+                f"delete() called for group: {self.name} (ID: {self.id}), DRY_RUN={DRY_RUN}"
+            )
+        base_url = URLS.get("DELETE_GROUP", "")
         url = f"{base_url}{self.id}"
         if not url.startswith("http://") and not url.startswith("https://"):
             url = f"https://{url}"
         if DRY_RUN:
             # Dry run mode: do not make any network requests or retries
             if DEBUG:
-                logger.debug(f"DRY_RUN is enabled. Skipping actual HTTP DELETE for group: {self.name} (ID: {self.id})")
+                logger.debug(
+                    f"DRY_RUN is enabled. Skipping actual HTTP DELETE for group: {self.name} (ID: {self.id})"
+                )
             console.print(
                 f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
             )
@@ -368,7 +377,9 @@ class AlexaGroup:
         """
         if DRY_RUN:
             if DEBUG:
-                logger.debug(f"_delete_with_retry called in DRY_RUN mode for URL: {url}. Skipping network request.")
+                logger.debug(
+                    f"_delete_with_retry called in DRY_RUN mode for URL: {url}. Skipping network request."
+                )
             return True
         response = requests.delete(url, headers=ALEXA_HEADERS, timeout=10)
         if DEBUG:

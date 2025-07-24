@@ -289,7 +289,9 @@ class HAArea:
         """
         if not isinstance(name, str):
             raise TypeError("name must be a string.")
-        if not isinstance(entity_ids, list) or not all(isinstance(eid, str) for eid in entity_ids):
+        if not isinstance(entity_ids, list) or not all(
+            isinstance(eid, str) for eid in entity_ids
+        ):
             raise TypeError("entity_ids must be a list of strings.")
         self.name = name
         self.entity_ids = entity_ids
@@ -406,6 +408,7 @@ class AlexaGroup:
             requests.HTTPError: If creation fails after retries.
         """
         from alexa_manager.config import DRY_RUN
+
         url = URLS.get("CREATE_GROUP", "")
         if DRY_RUN:
             console.print(
@@ -415,7 +418,9 @@ class AlexaGroup:
         if "applianceIds" in self.create_data:
             for aid in self.create_data["applianceIds"]:
                 if not isinstance(aid, str):
-                    raise ValueError("Each applianceId must be a JSON string, not a dict.")
+                    raise ValueError(
+                        "Each applianceId must be a JSON string, not a dict."
+                    )
         payload = json.dumps(self.create_data)
         response = requests.post(url, headers=ALEXA_HEADERS, data=payload, timeout=10)
         if DEBUG:

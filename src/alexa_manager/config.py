@@ -160,15 +160,21 @@ DEBUG_FILES: Dict[str, str] = {
 URLS: Dict[str, str] = {
     "GET_ENTITIES": f"https://{ALEXA_HOST}/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome",
     "GET_GROUPS": f"https://{ALEXA_HOST}/api/phoenix/group",
+    # Use GET_GROUPS as base for CREATE and DELETE group endpoints for maintainability
+    "CREATE_GROUP": None,  # Will be set below
+    "DELETE_GROUP": None,  # Will be set below
     "DELETE_ENTITIES": f"https://{ALEXA_HOST}/api/phoenix/appliance/{DELETE_SKILL}%3D%3D_",
-    "DELETE_GROUP": f"https://{ALEXA_HOST}/api/phoenix/group/",
     "HA_TEMPLATE": f"https://{HA_HOST}/api/template",
 }
+# Set CREATE_GROUP and DELETE_GROUP using GET_GROUPS as base
+URLS["CREATE_GROUP"] = URLS["GET_GROUPS"]  # POST to this URL to create a group
+URLS["DELETE_GROUP"] = URLS["GET_GROUPS"] + "/"  # DELETE with group ID appended
 
 ALEXA_HEADERS: Dict[str, str] = {
     "Host": ALEXA_HOST,
     "x-amzn-alexa-app": X_AMZN_ALEXA_APP,
     "Connection": "keep-alive",
+    "Content-Type": "application/json",
     "Accept": "application/json; charset=utf-8",
     "User-Agent": USER_AGENT,
     "csrf": CSRF,

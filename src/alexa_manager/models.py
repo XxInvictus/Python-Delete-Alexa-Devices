@@ -24,6 +24,7 @@ from tenacity import (
 )
 import logging
 from rich.console import Console
+import json
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -313,20 +314,27 @@ class AlexaGroup:
         Returns:
             bool: True if creation was successful or simulated, False otherwise.
         """
-        url = URLS.get("CREATE_GROUPS", "")
+        url = URLS.get("CREATE_GROUP", "")
         if DRY_RUN:
             console.print(
                 f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{self.name}[/cyan] with data: [green]{self.create_data}[/green] at [green]{url}[/green]"
             )
             return True  # Simulate success
-        response = requests.post(
-            url, headers=ALEXA_HEADERS, json=self.create_data, timeout=10
-        )
+        # Do NOT re-serialize applianceIds; they should already be JSON strings with single-escaped quotes
+        if "applianceIds" in self.create_data:
+            for aid in self.create_data["applianceIds"]:
+                if not isinstance(aid, str):
+                    raise ValueError(
+                        "Each applianceId must be a JSON string, not a dict."
+                    )
+        # Manually serialize the payload to preserve single-escaped applianceIds
+        payload = json.dumps(self.create_data)
+        response = requests.post(url, headers=ALEXA_HEADERS, data=payload, timeout=10)
         if DEBUG:
             logger.debug(f"Create group response status code: {response.status_code}")
             logger.debug(f"Create group response text: {response.text}")
         response.raise_for_status()
-        return response.status_code == 201
+        return response.status_code == 200
 
     def delete(self) -> bool:
         """
@@ -386,7 +394,7 @@ class AlexaGroup:
             logger.debug(f"Delete group response status code: {response.status_code}")
             logger.debug(f"Delete group response text: {response.text}")
         response.raise_for_status()
-        return response.status_code == 204
+        return response.status_code == 200
 
 
 class AlexaExpandedGroup(AlexaGroup):
@@ -416,46 +424,40 @@ class AlexaExpandedGroup(AlexaGroup):
         entity_id: str = "",
         entity_type: str = "GROUP",
         group_type: str = "APPLIANCE",
-        child_ids: List[str] = None,
+        child_ids: List[Any] = None,
         defaults: List[Any] = None,
-        associated_unit_ids: List[str] = None,
+        associated_unit_ids: List[Any] = None,
         default_metadata_by_type: Dict[str, Any] = None,
         implicit_targeting_by_type: Dict[str, Any] = None,
         appliance_ids: List[Any] = None,
     ) -> None:
         """
-        Initialize an AlexaExpandedGroup object.
-
-        Args:
-            name (str): The name of the group.
-            group_id (str): The group's unique identifier.
-            entity_id (str): The entityId field.
-            entity_type (str): The entityType field.
-            group_type (str): The groupType field.
-            child_ids (List[str], optional): List of child IDs.
-            defaults (List[Any], optional): Defaults list.
-            associated_unit_ids (List[str], optional): Associated unit IDs.
-            default_metadata_by_type (Dict[str, Any], optional): Metadata by type.
-            implicit_targeting_by_type (Dict[str, Any], optional): Implicit targeting by type.
-            appliance_ids (List[Any], optional): List of appliance IDs.
+        Initialize an AlexaExpandedGroup object with all fields from the API response.
+        Sanitizes all list fields to ensure only hashable types are stored.
+        Flattens nested dicts in metadata fields to avoid unhashable type errors.
         """
         super().__init__(name, group_id)
         self.entity_id: str = entity_id
         self.entity_type: str = entity_type
         self.group_type: str = group_type
-        self.child_ids: List[str] = child_ids if child_ids is not None else []
-        self.defaults: List[Any] = defaults if defaults is not None else []
-        self.associated_unit_ids: List[str] = (
-            associated_unit_ids if associated_unit_ids is not None else []
+        self.child_ids: List[str] = sanitize_list(child_ids or [], key="id")
+        self.defaults: List[str] = sanitize_list(defaults or [])
+        self.associated_unit_ids: List[str] = sanitize_list(
+            associated_unit_ids or [], key="id"
         )
+        # Do not flatten dicts for defaultMetadataByType and implicitTargetingByType
         self.default_metadata_by_type: Dict[str, Any] = (
-            default_metadata_by_type if default_metadata_by_type is not None else {}
+            default_metadata_by_type
+            if isinstance(default_metadata_by_type, dict)
+            else {}
         )
         self.implicit_targeting_by_type: Dict[str, Any] = (
-            implicit_targeting_by_type if implicit_targeting_by_type is not None else {}
+            implicit_targeting_by_type
+            if isinstance(implicit_targeting_by_type, dict)
+            else {}
         )
-        self.appliance_ids: List[Any] = (
-            appliance_ids if appliance_ids is not None else []
+        self.appliance_ids: List[str] = sanitize_list(
+            appliance_ids or [], key="applianceId"
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -478,3 +480,101 @@ class AlexaExpandedGroup(AlexaGroup):
             "implicitTargetingByType": self.implicit_targeting_by_type,
             "applianceIds": self.appliance_ids,
         }
+
+    def update(self) -> bool:
+        """
+        Update the Alexa group via the API, or simulate if DRY_RUN is True.
+
+        Returns:
+            bool: True if update was successful or simulated, False otherwise.
+        """
+        url = f"{URLS.get('GET_GROUPS', '')}/{self.id}"
+        payload_dict = self.to_dict()
+        # Ensure applianceIds are all JSON strings as required by the API
+        if "applianceIds" in payload_dict:
+            formatted_appliance_ids = []
+            for aid in payload_dict["applianceIds"]:
+                if isinstance(aid, str) and aid.startswith("{") and aid.endswith("}"):
+                    formatted_appliance_ids.append(aid)
+                else:
+                    formatted_appliance_ids.append(format_appliance_id_for_api(aid))
+            payload_dict["applianceIds"] = formatted_appliance_ids
+        # Ensure associatedUnitIds is always a list
+        if payload_dict.get("associatedUnitIds") is None:
+            payload_dict["associatedUnitIds"] = []
+        payload = json.dumps(payload_dict)
+        if DRY_RUN:
+            console.print(
+                f"[bold yellow][DRY RUN][/bold yellow] Would UPDATE group: [cyan]{self.name}[/cyan] (ID: {self.id}) with data: [green]{payload}[/green] at [green]{url}[/green]"
+            )
+            return True
+        try:
+            response = requests.put(
+                url, headers=ALEXA_HEADERS, data=payload, timeout=10
+            )
+            if DEBUG:
+                logger.debug(
+                    f"Update group response status code: {response.status_code}"
+                )
+                logger.debug(f"Update group response text: {response.text}")
+            response.raise_for_status()
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Exception during group update: {e}")
+            return False
+
+
+def format_appliance_id_for_api(appliance_id: str) -> str:
+    """
+    Format the appliance ID for Alexa API requests.
+
+    Parameters:
+    appliance_id (str): The raw appliance ID string.
+
+    Returns:
+    str: A JSON string formatted for the Alexa API, e.g. '{"applianceId": "..."}'.
+    """
+    import json
+
+    # Edge case: handle empty or None input
+    if not appliance_id or not isinstance(appliance_id, str):
+        raise ValueError("appliance_id must be a non-empty string")
+    return json.dumps({"applianceId": appliance_id})
+
+
+def sanitize_list(input_list: List[Any], key: str = None) -> List[str]:
+    """
+    Sanitize a list to ensure all items are hashable (strings).
+    If a dict is found, extract the value for 'key' if provided, else str(dict).
+    """
+    sanitized = []
+    for item in input_list:
+        if isinstance(item, dict):
+            val = item.get(key) if key and key in item else str(item)
+            sanitized.append(val)
+            logger.warning(f"Sanitized dict in list: {item} -> {val}")
+        else:
+            sanitized.append(str(item))
+    return sanitized
+
+
+def flatten_dict(d: dict) -> dict:
+    """
+    Recursively convert all nested dicts to strings for hashability.
+    This ensures that any dict, even if deeply nested, is converted to a string.
+    """
+    if not isinstance(d, dict):
+        return d
+    flat = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            flat[k] = str(flatten_dict(v))
+        elif isinstance(v, list):
+            # Recursively sanitize lists
+            flat[k] = [
+                str(flatten_dict(item)) if isinstance(item, dict) else item
+                for item in v
+            ]
+        else:
+            flat[k] = v
+    return flat

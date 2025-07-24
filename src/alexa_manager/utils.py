@@ -143,3 +143,44 @@ def normalize_area_name(area_name: str) -> str:
         str: Normalized area name.
     """
     return area_name.replace("_", " ").strip().lower()
+
+
+def sanitize_list(items: List[Any], key: str = None) -> List[str]:
+    """
+    Sanitize a list to ensure all elements are hashable strings.
+    If a key is provided, extract that key from dicts or JSON strings.
+    Handles dicts, JSON strings, and other types robustly.
+
+    Args:
+        items (List[Any]): The input list to sanitize.
+        key (str, optional): The key to extract from dicts or JSON strings.
+
+    Returns:
+        List[str]: A list of hashable strings.
+    """
+    import json
+
+    sanitized: List[str] = []
+    for item in items:
+        # If item is a dict and key is provided, extract key
+        if isinstance(item, dict):
+            if key and key in item:
+                sanitized.append(str(item[key]))
+            else:
+                sanitized.append(str(item))
+        # If item is a JSON string, try to parse and extract key
+        elif isinstance(item, str):
+            if key:
+                try:
+                    parsed = json.loads(item)
+                    if isinstance(parsed, dict) and key in parsed:
+                        sanitized.append(str(parsed[key]))
+                    else:
+                        sanitized.append(item)
+                except (json.JSONDecodeError, TypeError):
+                    sanitized.append(item)
+            else:
+                sanitized.append(item)
+        else:
+            sanitized.append(str(item))
+    return sanitized

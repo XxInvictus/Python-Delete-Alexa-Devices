@@ -84,6 +84,7 @@ def test_alexa_expanded_group_to_dict():
     The defaults field may be a list of strings if sanitized by the model.
     """
     from alexa_manager.models import AlexaExpandedGroup
+
     group = AlexaExpandedGroup(
         name="Test Group",
         group_id="group123",

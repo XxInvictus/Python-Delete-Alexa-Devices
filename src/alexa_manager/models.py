@@ -25,6 +25,7 @@ from tenacity import (
 import logging
 from rich.console import Console
 import json
+from alexa_manager.utils import sanitize_list, format_appliance_id_for_api
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -200,7 +201,6 @@ class AlexaEntity:
             raise requests.HTTPError(
                 f"Entity {self.id} was not deleted. Status code: {response.status_code}, Response: {response.text}"
             )
-        return response.status_code == 404
 
 
 class HAArea:
@@ -522,59 +522,3 @@ class AlexaExpandedGroup(AlexaGroup):
         except Exception as e:
             logger.error(f"Exception during group update: {e}")
             return False
-
-
-def format_appliance_id_for_api(appliance_id: str) -> str:
-    """
-    Format the appliance ID for Alexa API requests.
-
-    Parameters:
-    appliance_id (str): The raw appliance ID string.
-
-    Returns:
-    str: A JSON string formatted for the Alexa API, e.g. '{"applianceId": "..."}'.
-    """
-    import json
-
-    # Edge case: handle empty or None input
-    if not appliance_id or not isinstance(appliance_id, str):
-        raise ValueError("appliance_id must be a non-empty string")
-    return json.dumps({"applianceId": appliance_id})
-
-
-def sanitize_list(input_list: List[Any], key: str = None) -> List[str]:
-    """
-    Sanitize a list to ensure all items are hashable (strings).
-    If a dict is found, extract the value for 'key' if provided, else str(dict).
-    """
-    sanitized = []
-    for item in input_list:
-        if isinstance(item, dict):
-            val = item.get(key) if key and key in item else str(item)
-            sanitized.append(val)
-            logger.warning(f"Sanitized dict in list: {item} -> {val}")
-        else:
-            sanitized.append(str(item))
-    return sanitized
-
-
-def flatten_dict(d: dict) -> dict:
-    """
-    Recursively convert all nested dicts to strings for hashability.
-    This ensures that any dict, even if deeply nested, is converted to a string.
-    """
-    if not isinstance(d, dict):
-        return d
-    flat = {}
-    for k, v in d.items():
-        if isinstance(v, dict):
-            flat[k] = str(flatten_dict(v))
-        elif isinstance(v, list):
-            # Recursively sanitize lists
-            flat[k] = [
-                str(flatten_dict(item)) if isinstance(item, dict) else item
-                for item in v
-            ]
-        else:
-            flat[k] = v
-    return flat

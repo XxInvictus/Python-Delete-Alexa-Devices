@@ -48,13 +48,13 @@ def test_main_no_args(monkeypatch):
     monkeypatch.setattr(
         main,
         "delete_entities",
-        lambda x: called.update({"delete_entities": True}) or [],
+        lambda x, y=None: called.update({"delete_entities": True}) or [],
     )
     monkeypatch.setattr(
-        main, "delete_groups", lambda x: called.update({"delete_groups": True}) or []
+        main, "delete_groups", lambda x, y=None: called.update({"delete_groups": True}) or []
     )
     monkeypatch.setattr(
-        main, "create_groups", lambda x: called.update({"create_groups": True}) or []
+        main, "create_groups_from_areas", lambda x, y=None, z=None: called.update({"create_groups": True}) or []
     )
     monkeypatch.setattr(main, "get_entities", lambda: MagicMock(entities=[]))
     monkeypatch.setattr(
@@ -121,10 +121,10 @@ def test_main_alexa_only_skips_ha(monkeypatch, caplog):
         called["get_ha_areas"] = True
         return {}
 
-    monkeypatch.setattr(main, "create_groups", fake_create_groups)
+    monkeypatch.setattr(main, "create_groups_from_areas", fake_create_groups)
     monkeypatch.setattr(main, "get_ha_areas", fake_get_ha_areas)
     main.main()
-    # Should not call create_groups or get_ha_areas
+    # Should not call create_groups_from_areas or get_ha_areas
     assert not called["create_groups"]
     assert not called["get_ha_areas"]
     # Should log Alexa Only mode message
@@ -142,7 +142,7 @@ def test_main_alexa_only_no_args(monkeypatch, caplog):
     monkeypatch.setattr(sys, "argv", ["main.py", "--alexa-only"])
     called = {"create_groups": False, "get_ha_areas": False}
     monkeypatch.setattr(
-        main, "create_groups", lambda x: called.update({"create_groups": True}) or []
+        main, "create_groups_from_areas", lambda x, y=None: called.update({"create_groups": True}) or []
     )
     monkeypatch.setattr(
         main, "get_ha_areas", lambda: called.update({"get_ha_areas": True}) or {}
@@ -151,7 +151,7 @@ def test_main_alexa_only_no_args(monkeypatch, caplog):
     monkeypatch.setattr(AlexaEntity, "delete", lambda self: True)
     monkeypatch.setattr(AlexaGroup, "delete", lambda self: True)
     main.main()
-    # Should not call create_groups or get_ha_areas
+    # Should not call create_groups_from_areas or get_ha_areas
     assert not called["create_groups"]
     assert not called["get_ha_areas"]
     assert any("Alexa Only mode" in r for r in caplog.messages)
@@ -159,7 +159,7 @@ def test_main_alexa_only_no_args(monkeypatch, caplog):
 
 def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
     """
-    Test that create_groups_from_areas skips areas listed in ignored_ha_areas.
+    Test that create_groups_from_areas skips areas listed in IGNORED_HA_AREAS.
     """
     # Mock HA areas
     ha_areas = {
@@ -167,8 +167,10 @@ def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
         "Garage": ["entity_3"],
         "Kitchen": ["entity_4"],
     }
-    # Mock config with ignored_ha_areas
-    monkeypatch.setattr(main, "ignored_ha_areas", ["Garage"])
+    # Patch IGNORED_HA_AREAS constant
+    monkeypatch.setattr(main, "IGNORED_HA_AREAS", ["Garage"])
+    # Patch normalization to identity for test
+    monkeypatch.setattr(main, "normalize_area_name", lambda name: name)
     # Patch dependencies
     monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MagicMock())
     monkeypatch.setattr(

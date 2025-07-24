@@ -1,6 +1,24 @@
 # Alexa Manager
+[![CodeQL Advanced](actions/workflows/codeql.yml/badge.svg)](actions/workflows/codeql.yml) | 
+[![Dependency review](actions/workflows/dependency-review.yml/badge.svg)](actions/workflows/dependency-review.yml) | 
+[![Pytest](actions/workflows/uv_pytest.yml/badge.svg)](actions/workflows/uv_pytest.yml) | 
+[![Ruff](actions/workflows/ruff.yml/badge.svg)](actions/workflows/ruff.yml)
 
-A Python tool for managing Amazon Alexa devices, entities, and groups via the Alexa API. This project is structured for maintainability, testability, and clarity, following modern Python best practices.
+## Index
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [How to Retrieve Required Configuration Values (Android/iOS)](#how-to-retrieve-required-configuration-values-androidios)
+- [Usage](#usage)
+  - [CLI Arguments](#cli-arguments)
+- [Testing](#testing)
+- [Coding Standards](#coding-standards)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+- [Acknowledgements](#acknowledgements)
+- [Disclaimer](#disclaimer)
+
+---
 
 ## Project Structure
 
@@ -18,6 +36,8 @@ A Python tool for managing Amazon Alexa devices, entities, and groups via the Al
 └── LICENSE
 ```
 
+---
+
 ## Installation
 
 1. **Python Version:** Requires Python 3.13 or newer.
@@ -32,6 +52,8 @@ A Python tool for managing Amazon Alexa devices, entities, and groups via the Al
    ```
    > **Note:** `uv` installs in editable mode by default. Use only native `uv` commands for dependency management. Avoid using `uv pip` except for legacy compatibility.
 
+---
+
 ## Configuration
 
 - All configuration files are in the `config/` directory.
@@ -39,7 +61,9 @@ A Python tool for managing Amazon Alexa devices, entities, and groups via the Al
 - You must fill in your Amazon Alexa API credentials and other required values in `config/user_config.json`.
 - See comments in the config files for details on each field.
 
-## How to Retrieve Required Configuration Values (Android/iOS)
+---
+
+### How to Retrieve Required Configuration Values (Android/iOS)
 
 To use this tool, you need to extract certain authentication values from the Alexa app on your mobile device. Follow these steps:
 
@@ -66,12 +90,16 @@ To use this tool, you need to extract certain authentication values from the Ale
 
 If you get an error, try updating the HOST, USER_AGENT, CSRF, or COOKIE values from the latest captured requests. See the Troubleshooting section below for more details.
 
+---
+
 ## Usage
 
 You can run the CLI tool directly (no need to use `-m` or specify the module path) thanks to the `project.scripts` configuration in `pyproject.toml`:
 ```sh
 uv run alexa_manager --help
 ```
+
+---
 
 ### CLI Arguments
 
@@ -92,6 +120,8 @@ uv run alexa_manager --help
 | `--test-alexa-groups` | Create a test Alexa group with a random ApplianceId, verify creation, update with another random ApplianceId, verify update, and delete it.                                                               |
 | `--help`               | Show help message and exit.                                                                                                                                                                               |
 
+---
+
 **Examples:**
 ```sh
 uv run alexa_manager --get-entities
@@ -101,8 +131,8 @@ uv run alexa_manager --get-ha-areas
 uv run alexa_manager --alexa-only
 uv run alexa_manager --delete-entities --dry-run
 uv run alexa_manager --create-groups --dry-run
-python main.py --get-ha-mapping
-python main.py --interactive --delete-entities
+uv run alexa_manager --get-ha-mapping
+uv run alexa_manager --interactive --delete-entities
 uv run alexa_manager --test-alexa-groups
 ```
 
@@ -134,6 +164,8 @@ uv run alexa_manager --create-groups --interactive
 ```
 In interactive mode, you will be asked to confirm each action by typing `yes` or `no`. Review the proposed changes carefully before confirming.
 
+---
+
 ## Testing
 
 - All tests are in the `tests/` directory.
@@ -143,6 +175,8 @@ In interactive mode, you will be asked to confirm each action by typing `yes` or
   ```
 - Tests use `pytest` and follow PEP 257 docstring conventions.
 
+---
+
 ## Coding Standards
 
 - Follows [PEP 8](https://peps.python.org/pep-0008/) and [PEP 257](https://peps.python.org/pep-0257/) for code and docstrings.
@@ -150,9 +184,13 @@ In interactive mode, you will be asked to confirm each action by typing `yes` or
 - All functions and classes are type-annotated using the `typing` module.
 - See `pyproject.toml` for dependencies and project metadata.
 
+---
+
 ## Contributing
 
 Contributions are welcome! Please ensure your code is well-documented, tested, and follows the project conventions.
+
+---
 
 ## Troubleshooting
 
@@ -161,6 +199,8 @@ Contributions are welcome! Please ensure your code is well-documented, tested, a
 - If you encounter CSRF errors, update the `CSRF` value from the latest DELETE request.
 - If you have used the script previously, update the `COOKIE` value from the latest GET or DELETE request.
 
+---
+
 ## Acknowledgements
 
 > "An Amazon employee told me 'have fun with that' when I asked him how to delete devices connected to an Alexa skill. So I did." — Pytonballoon810
@@ -168,6 +208,8 @@ Contributions are welcome! Please ensure your code is well-documented, tested, a
 Special thanks to:
 - [Pytonballoon810](https://github.com/Pytonballoon810) for the original inspiration and script.
 - [HennieLP](https://github.com/hennielp) for help with the original script and README, and HTTP sniffing.
+
+---
 
 ## Disclaimer
 

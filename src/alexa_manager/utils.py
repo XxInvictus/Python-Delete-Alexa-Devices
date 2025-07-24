@@ -145,42 +145,73 @@ def normalize_area_name(area_name: str) -> str:
     return area_name.replace("_", " ").strip().lower()
 
 
-def sanitize_list(items: List[Any], key: str = None) -> List[str]:
+def sanitize_list(input_list: list, key: str = None) -> list:
     """
-    Sanitize a list to ensure all elements are hashable strings.
-    If a key is provided, extract that key from dicts or JSON strings.
-    Handles dicts, JSON strings, and other types robustly.
-
-    Args:
-        items (List[Any]): The input list to sanitize.
-        key (str, optional): The key to extract from dicts or JSON strings.
-
-    Returns:
-        List[str]: A list of hashable strings.
+    Sanitize a list to ensure all items are hashable (strings).
+    If a dict is found, extract the value for 'key' if provided, else str(dict).
     """
-    import json
-
-    sanitized: List[str] = []
-    for item in items:
-        # If item is a dict and key is provided, extract key
+    sanitized = []
+    for item in input_list:
         if isinstance(item, dict):
-            if key and key in item:
-                sanitized.append(str(item[key]))
-            else:
-                sanitized.append(str(item))
-        # If item is a JSON string, try to parse and extract key
-        elif isinstance(item, str):
-            if key:
-                try:
-                    parsed = json.loads(item)
-                    if isinstance(parsed, dict) and key in parsed:
-                        sanitized.append(str(parsed[key]))
-                    else:
-                        sanitized.append(item)
-                except (json.JSONDecodeError, TypeError):
-                    sanitized.append(item)
-            else:
-                sanitized.append(item)
+            val = item.get(key) if key and key in item else str(item)
+            sanitized.append(val)
+            logging.warning(f"Sanitized dict in list: {item} -> {val}")
         else:
             sanitized.append(str(item))
     return sanitized
+
+
+def flatten_dict(d: dict) -> dict:
+    """
+    Recursively convert all nested dicts to strings for hashability.
+    This ensures that any dict, even if deeply nested, is converted to a string.
+    """
+    if not isinstance(d, dict):
+        return d
+    flat = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            flat[k] = str(flatten_dict(v))
+        elif isinstance(v, list):
+            flat[k] = [
+                str(flatten_dict(item)) if isinstance(item, dict) else item
+                for item in v
+            ]
+        else:
+            flat[k] = v
+    return flat
+
+
+def format_appliance_id_for_api(appliance_id: str) -> str:
+    """
+    Format the appliance ID for Alexa API requests.
+
+    Parameters:
+    appliance_id (str): The raw appliance ID string.
+
+    Returns:
+    str: A JSON string formatted for the Alexa API, e.g. '{"applianceId": "..."}'.
+    """
+    import json
+
+    if not appliance_id or not isinstance(appliance_id, str):
+        raise ValueError("appliance_id must be a non-empty string")
+    return json.dumps({"applianceId": appliance_id})
+
+
+def _dry_run_action(action: str, target: str, url: str, extra: str = "") -> None:
+    """
+    Helper to print dry-run actions for entities and groups.
+    Args:
+        action (str): The action being simulated (e.g., 'DELETE', 'CREATE').
+        target (str): The name or ID of the target entity/group.
+        url (str): The API endpoint URL.
+        extra (str): Additional info to print (optional).
+    """
+    from rich.console import Console
+
+    console = Console()
+    msg = f"[bold yellow][DRY RUN][/bold yellow] Would {action} {target} at [green]{url}[/green]"
+    if extra:
+        msg += f" {extra}"
+    console.print(msg)

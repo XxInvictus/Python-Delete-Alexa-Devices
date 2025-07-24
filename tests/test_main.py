@@ -51,10 +51,14 @@ def test_main_no_args(monkeypatch):
         lambda x, y=None: called.update({"delete_entities": True}) or [],
     )
     monkeypatch.setattr(
-        main, "delete_groups", lambda x, y=None: called.update({"delete_groups": True}) or []
+        main,
+        "delete_groups",
+        lambda x, y=None: called.update({"delete_groups": True}) or [],
     )
     monkeypatch.setattr(
-        main, "create_groups_from_areas", lambda x, y=None, z=None: called.update({"create_groups": True}) or []
+        main,
+        "create_groups_from_areas",
+        lambda x, y=None, z=None: called.update({"create_groups": True}) or [],
     )
     monkeypatch.setattr(main, "get_entities", lambda: MagicMock(entities=[]))
     monkeypatch.setattr(
@@ -142,7 +146,9 @@ def test_main_alexa_only_no_args(monkeypatch, caplog):
     monkeypatch.setattr(sys, "argv", ["main.py", "--alexa-only"])
     called = {"create_groups": False, "get_ha_areas": False}
     monkeypatch.setattr(
-        main, "create_groups_from_areas", lambda x, y=None: called.update({"create_groups": True}) or []
+        main,
+        "create_groups_from_areas",
+        lambda x, y=None: called.update({"create_groups": True}) or [],
     )
     monkeypatch.setattr(
         main, "get_ha_areas", lambda: called.update({"get_ha_areas": True}) or {}

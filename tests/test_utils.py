@@ -149,25 +149,49 @@ def test_run_with_progress_bar_large(monkeypatch):
     assert called == items
 
 
-def test_run_with_progress_bar_exception(monkeypatch):
+def test_run_with_progress_bar_exception(monkeypatch, caplog):
     """
     Test run_with_progress_bar when per_item_func raises an exception.
-    Should propagate the exception.
+    Should log the error and collect the failed item, not propagate the exception.
     """
     from alexa_manager.utils import run_with_progress_bar
 
     items = [1, 2, 3]
+    failed = []
 
     def per_item_func(item, collector):
         if item == 2:
             raise RuntimeError("fail")
 
-    try:
-        run_with_progress_bar(items, "Exception Test", per_item_func, [])
-    except RuntimeError as e:
-        assert str(e) == "fail"
-    else:
-        assert False, "Exception did not propagate"
+    with caplog.at_level("ERROR"):
+        run_with_progress_bar(items, "Exception Test", per_item_func, failed)
+
+    assert failed == [2]
+    assert any("Unexpected error processing item '2'" in m for m in caplog.messages)
+
+
+def test_run_with_progress_bar_handles_exceptions(monkeypatch, caplog):
+    """
+    Test that run_with_progress_bar collects items that raise unexpected exceptions
+    and logs the error message.
+    """
+    from alexa_manager.utils import run_with_progress_bar
+
+    items = ["ok", "fail", "ok2"]
+    called = []
+    failed = []
+
+    def per_item_func(item, collector):
+        if item == "fail":
+            raise RuntimeError("Unexpected failure!")
+        called.append(item)
+
+    with caplog.at_level("ERROR"):
+        run_with_progress_bar(items, "Test Exception Handling", per_item_func, failed)
+
+    assert called == ["ok", "ok2"]
+    assert failed == ["fail"]
+    assert any("Unexpected error processing item 'fail'" in m for m in caplog.messages)
 
 
 def test_print_table_runs():

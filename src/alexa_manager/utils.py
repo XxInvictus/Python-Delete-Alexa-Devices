@@ -17,13 +17,17 @@ def rate_limited(func: Callable) -> Callable:
     """
     Decorator to apply a rate limit to a function using time.sleep.
 
+    This is used to avoid hitting API rate limits or overwhelming external services.
+    The magic number RATE_LIMIT_SLEEP is set to 0.2 seconds, which is a balance between
+    responsiveness and avoiding throttling. Adjust as needed for your API's rate limits.
+
     Args:
         func (Callable): The function to be rate limited.
 
     Returns:
         Callable: The wrapped function with rate limiting applied.
     """
-    RATE_LIMIT_SLEEP: float = 0.2
+    RATE_LIMIT_SLEEP: float = 0.2  # Sleep duration in seconds between calls (magic number)
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -55,6 +59,7 @@ def run_with_progress_bar(
     Edge Cases:
         - Handles KeyboardInterrupt gracefully, reporting partial progress.
         - Falls back to basic output if 'rich' is not installed.
+        - Catches unexpected errors and logs them, ensuring clear feedback.
     """
     logger = logging.getLogger(__name__)
     try:
@@ -70,6 +75,9 @@ def run_with_progress_bar(
                         f"Interrupted during {description.lower()}. Partial progress will be reported."
                     )
                     break
+                except Exception as e:
+                    logger.error(f"Unexpected error processing item '{item}': {e}")
+                    fail_collector.append(item)
                 finally:
                     progress.update(task, advance=1)
     except ImportError:
@@ -82,6 +90,9 @@ def run_with_progress_bar(
                     f"Interrupted during {description.lower()}. Partial progress will be reported."
                 )
                 break
+            except Exception as e:
+                logger.error(f"Unexpected error processing item '{item}': {e}")
+                fail_collector.append(item)
 
 
 def print_table(data: List[Dict[str, Any]], columns: List[str], title: str) -> None:

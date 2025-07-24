@@ -13,6 +13,8 @@ from alexa_manager import main
 def test_main_get_entities(monkeypatch):
     """
     Test main CLI with --get-entities argument outputs entities table.
+    Expected behavior: main.main() should call print_table and exit with SystemExit(0).
+    Edge case: If entity list is empty, print_table should still be called with an empty list.
     """
     monkeypatch.setattr(sys, "argv", ["main.py", "--get-entities"])
     cli_output_flag = {}
@@ -35,7 +37,9 @@ def test_main_get_entities(monkeypatch):
         entities = [MockEntity()]
 
     monkeypatch.setattr(main, "get_entities", lambda: MockAlexaEntities())
-    main.main()
+    with pytest.raises(SystemExit) as excinfo:
+        main.main()
+    assert excinfo.value.code == 0
     assert cli_output_flag.get("printed")
 
 

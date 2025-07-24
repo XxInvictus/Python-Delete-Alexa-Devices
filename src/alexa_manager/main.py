@@ -22,7 +22,6 @@ from typing import Any, Dict, List
 
 from alexa_manager.config import (
     config,
-    DRY_RUN,
     IGNORED_HA_AREAS,
 )
 from alexa_manager.models import (
@@ -294,12 +293,12 @@ create_groups_from_areas = create_groups_from_areas
 # -----------------
 
 
-def main() -> None:
+def parse_arguments() -> argparse.Namespace:
     """
-    Main entry point for the script. Parses command-line arguments and runs selected actions.
+    Parse and validate command-line arguments for Alexa Manager operations.
 
     Returns:
-        None
+        argparse.Namespace: Parsed arguments namespace.
     """
     parser = argparse.ArgumentParser(
         description="Manage Alexa skill entities, endpoints, and groups.",
@@ -378,21 +377,31 @@ Examples:
         help="Test Alexa group creation, retrieval, and deletion with a randomly selected ApplianceId.",
     )
     args = parser.parse_args()
-    # Set global dry-run flag
+    # Validate mutually exclusive arguments if needed
+    return args
+
+
+def set_global_flags(args: argparse.Namespace) -> None:
+    """
+    Set global flags based on parsed arguments.
+
+    Args:
+        args (argparse.Namespace): Parsed arguments.
+    """
     import alexa_manager.config as config_mod
 
     config_mod.DRY_RUN = args.dry_run
     global DRY_RUN
     DRY_RUN = args.dry_run
 
-    # Run test_alexa_groups and exit if requested
-    if args.test_alexa_groups:
-        test_alexa_groups()
-        return
 
-    alexa_only = args.alexa_only
+def handle_get_actions(args: argparse.Namespace) -> None:
+    """
+    Handle all GET actions based on command-line arguments.
 
-    # If any get-* argument is used, only perform those gets and output results, and exit immediately
+    Args:
+        args (argparse.Namespace): Parsed arguments.
+    """
     get_args = [
         args.get_entities,
         args.get_endpoints,
@@ -400,89 +409,99 @@ Examples:
         args.get_ha_areas,
         args.get_ha_mapping,
     ]
-    if any(get_args):
-        if args.get_entities:
-            entities = get_entities()
-            print_table(
-                [
-                    {
-                        ID: e.id,
-                        DISPLAY_NAME: e.display_name,
-                        HA_ENTITY_ID: e.ha_entity_id,
-                        DESCRIPTION: e.description,
-                    }
-                    for e in entities.entities
-                ],
-                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
-                "Alexa Skill Entities",
-            )
-        if args.get_endpoints:
-            endpoints = get_graphql_endpoint_entities()
-            print_table(
-                [
-                    {
-                        ID: e.id,
-                        DISPLAY_NAME: e.display_name,
-                        HA_ENTITY_ID: e.ha_entity_id,
-                        DESCRIPTION: e.description,
-                    }
-                    for e in endpoints.entities
-                ],
-                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
-                "Alexa GraphQL Endpoints",
-            )
-        if args.get_groups:
-            groups = get_groups()
-            print_table(
-                [{GROUP_ID: g.id, NAME: g.name} for g in groups.groups],
-                [GROUP_ID, NAME],
-                "Alexa Groups",
-            )
-        if args.get_ha_areas or args.get_ha_mapping:
-            ha_areas = get_ha_areas()
-            if args.get_ha_areas:
-                print_table(
-                    [
-                        {NAME: area, "HA Entity IDs": ", ".join(ids)}
-                        for area, ids in ha_areas.items()
-                    ],
-                    [NAME, "HA Entity IDs"],
-                    "Home Assistant Areas",
-                )
-            if args.get_ha_mapping:
-                endpoints = get_graphql_endpoint_entities()
-                area_to_alexa_ids = map_ha_entities_to_alexa_ids(ha_areas, endpoints)
-                mapping_rows = []
-                for area, ha_ids in ha_areas.items():
-                    alexa_ids = area_to_alexa_ids.get(area, [])
-                    for ha_id, alexa_id in zip(ha_ids, alexa_ids):
-                        mapping_rows.append(
-                            {
-                                AREA: area,
-                                HA_ENTITY_ID: ha_id,
-                                ALEXA_APPLIANCE_ID: alexa_id,
-                            }
-                        )
-                print_table(
-                    mapping_rows,
-                    [AREA, HA_ENTITY_ID, ALEXA_APPLIANCE_ID],
-                    "HA Entity to Alexa Appliance Mapping",
-                )
+    if not any(get_args):
         return
+    if args.get_entities:
+        entities = get_entities()
+        print_table(
+            [
+                {
+                    ID: e.id,
+                    DISPLAY_NAME: e.display_name,
+                    HA_ENTITY_ID: e.ha_entity_id,
+                    DESCRIPTION: e.description,
+                }
+                for e in entities.entities
+            ],
+            [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
+            "Alexa Skill Entities",
+        )
+    if args.get_endpoints:
+        endpoints = get_graphql_endpoint_entities()
+        print_table(
+            [
+                {
+                    ID: e.id,
+                    DISPLAY_NAME: e.display_name,
+                    HA_ENTITY_ID: e.ha_entity_id,
+                    DESCRIPTION: e.description,
+                }
+                for e in endpoints.entities
+            ],
+            [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
+            "Alexa GraphQL Endpoints",
+        )
+    if args.get_groups:
+        groups = get_groups()
+        print_table(
+            [{GROUP_ID: g.id, NAME: g.name} for g in groups.groups],
+            [GROUP_ID, NAME],
+            "Alexa Groups",
+        )
+    if args.get_ha_areas or args.get_ha_mapping:
+        ha_areas = get_ha_areas()
+        if args.get_ha_areas:
+            print_table(
+                [
+                    {NAME: area, "HA Entity IDs": ", ".join(ids)}
+                    for area, ids in ha_areas.items()
+                ],
+                [NAME, "HA Entity IDs"],
+                "Home Assistant Areas",
+            )
+        if args.get_ha_mapping:
+            endpoints = get_graphql_endpoint_entities()
+            area_to_alexa_ids = map_ha_entities_to_alexa_ids(ha_areas, endpoints)
+            mapping_rows = []
+            for area, ha_ids in ha_areas.items():
+                alexa_ids = area_to_alexa_ids.get(area, [])
+                for ha_id, alexa_id in zip(ha_ids, alexa_ids):
+                    mapping_rows.append(
+                        {
+                            AREA: area,
+                            HA_ENTITY_ID: ha_id,
+                            ALEXA_APPLIANCE_ID: alexa_id,
+                        }
+                    )
+            print_table(
+                mapping_rows,
+                [AREA, HA_ENTITY_ID, ALEXA_APPLIANCE_ID],
+                "HA Entity to Alexa Appliance Mapping",
+            )
+    # Exit after GET actions
+    sys.exit(0)
 
-    # If no get-* arguments are given, perform all actions (default behavior)
+
+def dispatch_actions(args: argparse.Namespace) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Dispatch DELETE and CREATE actions based on command-line arguments.
+
+    Args:
+        args (argparse.Namespace): Parsed arguments.
+
+    Returns:
+        Dict[str, List[Dict[str, Any]]]: Dictionary of failed actions.
+    """
+    failed_entity_deletions = []
+    failed_endpoint_deletions = []
+    failed_group_deletions = []
+    failed_group_creations = []
     do_all = not (
         args.delete_entities
         or args.delete_endpoints
         or args.delete_groups
         or args.create_groups
     )
-
-    failed_entity_deletions = []
-    failed_endpoint_deletions = []
-    failed_group_deletions = []
-    failed_group_creations = []
-
     if args.delete_entities or do_all:
         failed_entity_deletions = delete_entities(get_entities(), args.interactive)
     if args.delete_endpoints or do_all:
@@ -492,7 +511,7 @@ Examples:
     if args.delete_groups or do_all:
         failed_group_deletions = delete_groups(get_groups(), args.interactive)
     if args.create_groups or do_all:
-        if alexa_only:
+        if args.alexa_only:
             logger.info(
                 "Alexa Only mode: Skipping Home Assistant area-based group creation."
             )
@@ -500,35 +519,44 @@ Examples:
             failed_group_creations = create_groups_from_areas(
                 get_ha_areas(), config, args.interactive
             )
+    return {
+        "failed_entity_deletions": failed_entity_deletions,
+        "failed_endpoint_deletions": failed_endpoint_deletions,
+        "failed_group_deletions": failed_group_deletions,
+        "failed_group_creations": failed_group_creations,
+    }
 
-    if (
-        failed_entity_deletions
-        or failed_endpoint_deletions
-        or failed_group_deletions
-        or failed_group_creations
-    ):
+
+def report_failures(failures: Dict[str, List[Dict[str, Any]]]) -> None:
+    """
+    Report failed actions in a structured manner.
+
+    Args:
+        failures (Dict[str, List[Dict[str, Any]]]): Dictionary of failed actions.
+    """
+    if any(failures.values()):
         logger.info("\nSummary of all failed deletions:")
-        if failed_entity_deletions:
+        if failures["failed_entity_deletions"]:
             logger.warning("\nFailed Entities:")
-            for failure in failed_entity_deletions:
+            for failure in failures["failed_entity_deletions"]:
                 logger.warning(
                     f"Name: '{failure['name']}', Entity ID: '{failure['entity_id']}'"
                 )
-        if failed_endpoint_deletions:
+        if failures["failed_endpoint_deletions"]:
             logger.warning("\nFailed Endpoints:")
-            for failure in failed_endpoint_deletions:
+            for failure in failures["failed_endpoint_deletions"]:
                 logger.warning(
                     f"Name: '{failure['name']}', Entity ID: '{failure['entity_id']}'"
                 )
-        if failed_group_deletions:
+        if failures["failed_group_deletions"]:
             logger.warning("\nFailed Groups:")
-            for failure in failed_group_deletions:
+            for failure in failures["failed_group_deletions"]:
                 logger.warning(
                     f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'"
                 )
-        if failed_group_creations:
+        if failures["failed_group_creations"]:
             logger.warning("\nFailed Group Creations:")
-            for failure in failed_group_creations:
+            for failure in failures["failed_group_creations"]:
                 logger.warning(f"Name: '{failure['name']}'")
     else:
         logger.info("Done")
@@ -537,6 +565,20 @@ Examples:
         )
         logger.info("- Removed all groups")
         logger.info("- Created all Home Assistant areas as Alexa groups")
+
+
+def main() -> None:
+    """
+    Main entry point for the script. Parses command-line arguments and runs selected actions.
+    """
+    args = parse_arguments()
+    set_global_flags(args)
+    if args.test_alexa_groups:
+        test_alexa_groups()
+        return
+    handle_get_actions(args)
+    failures = dispatch_actions(args)
+    report_failures(failures)
 
 
 if __name__ == "__main__":

@@ -99,9 +99,7 @@ class AlexaEntity:
             str: Delete ID for API deletion.
         """
         return (
-            description.replace(".", "%23")
-            .replace(" via Home Assistant", "")
-            .lower()
+            description.replace(".", "%23").replace(" via Home Assistant", "").lower()
         )
 
     def __init__(

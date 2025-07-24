@@ -465,18 +465,37 @@ def handle_get_actions(args: argparse.Namespace) -> None:
             mapping_rows = []
             for area, ha_ids in ha_areas.items():
                 alexa_ids = area_to_alexa_ids.get(area, [])
-                for ha_id, alexa_id in zip(ha_ids, alexa_ids):
+                # Build a lookup of normalized Alexa Appliance IDs for this area
+                norm_alexa_ids = set()
+                for aid in alexa_ids:
+                    if '==_' in aid:
+                        aid_norm = aid.split('==_')[-1].replace('#', '.').lower()
+                    else:
+                        aid_norm = aid.replace('#', '.').lower()
+                    norm_alexa_ids.add(aid_norm)
+                for ha_id in ha_ids:
+                    ha_id_norm = ha_id.lower()
+                    # Find the matching Alexa ID
+                    matched_alexa_id = None
+                    for aid in alexa_ids:
+                        if '==_' in aid:
+                            aid_norm = aid.split('==_')[-1].replace('#', '.').lower()
+                        else:
+                            aid_norm = aid.replace('#', '.').lower()
+                        if ha_id_norm == aid_norm:
+                            matched_alexa_id = aid
+                            break
                     mapping_rows.append(
                         {
                             AREA: area,
                             HA_ENTITY_ID: ha_id,
-                            ALEXA_APPLIANCE_ID: alexa_id,
+                            ID: matched_alexa_id if matched_alexa_id else "",
                         }
                     )
             print_table(
                 mapping_rows,
-                [AREA, HA_ENTITY_ID, ALEXA_APPLIANCE_ID],
-                "HA Entity to Alexa Appliance Mapping",
+                [AREA, HA_ENTITY_ID, ID],
+                "HA to Alexa Entity Mapping (Exact Matches Only)",
             )
     # Exit after GET actions
     sys.exit(0)

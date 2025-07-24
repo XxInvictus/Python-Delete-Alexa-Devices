@@ -138,25 +138,39 @@ def normalize_area_name(area_name: str) -> str:
 # Load config and constants
 config: Dict = load_config()
 
-DEBUG: bool = config["DEBUG"]
-SHOULD_SLEEP: bool = config["SHOULD_SLEEP"]
-DO_NOT_DELETE: bool = config["DO_NOT_DELETE"]
-ALEXA_HOST: str = config["ALEXA_HOST"]
-COOKIE: str = config["COOKIE"]
-X_AMZN_ALEXA_APP: str = config["X_AMZN_ALEXA_APP"]
-CSRF: str = config["CSRF"]
-DELETE_SKILL: str = config["DELETE_SKILL"]
-USER_AGENT: str = config["USER_AGENT"]
-ROUTINE_VERSION: str = config["ROUTINE_VERSION"]
-HA_HOST: str = config["HA_HOST"]
-HA_API_KEY: str = config["HA_API_KEY"]
+# -----------------------------
+# Alexa Management Configuration
+# -----------------------------
 
+# Debug and runtime flags
+DEBUG: bool = config.get("DEBUG", False)
+SHOULD_SLEEP: bool = config.get("SHOULD_SLEEP", True)
+DO_NOT_DELETE: bool = config.get("DO_NOT_DELETE", False)
+DRY_RUN: bool = False  # Global dry-run flag, set by main.py
+
+# Alexa API connection details
+ALEXA_HOST: str = config.get("ALEXA_HOST", "localhost")
+COOKIE: str = config.get("COOKIE", "")
+X_AMZN_ALEXA_APP: str = config.get("X_AMZN_ALEXA_APP", "")
+CSRF: str = config.get("CSRF", "")
+DELETE_SKILL: str = config.get("DELETE_SKILL", "")
+USER_AGENT: str = config.get("USER_AGENT", "Mozilla/5.0")
+ROUTINE_VERSION: str = config.get("ROUTINE_VERSION", "1.0")
+
+# Home Assistant API connection details
+HA_HOST: str = config.get("HA_HOST", "localhost")
+HA_API_KEY: str = config.get("HA_API_KEY", "")
+
+# Debug file paths for saving API responses
 DEBUG_FILES: Dict[str, str] = {
     "entities": "entities_debug.json",
     "groups": "groups_debug.json",
     "graphql": "graphql_debug.json",
 }
 
+# -----------------------------
+# API URLs
+# -----------------------------
 URLS: Dict[str, str] = {
     "GET_ENTITIES": f"https://{ALEXA_HOST}/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome",
     "GET_GROUPS": f"https://{ALEXA_HOST}/api/phoenix/group",
@@ -170,6 +184,9 @@ URLS: Dict[str, str] = {
 URLS["CREATE_GROUP"] = URLS["GET_GROUPS"]  # POST to this URL to create a group
 URLS["DELETE_GROUP"] = URLS["GET_GROUPS"] + "/"  # DELETE with group ID appended
 
+# -----------------------------
+# Alexa API Headers
+# -----------------------------
 ALEXA_HEADERS: Dict[str, str] = {
     "Host": ALEXA_HOST,
     "x-amzn-alexa-app": X_AMZN_ALEXA_APP,
@@ -181,14 +198,17 @@ ALEXA_HEADERS: Dict[str, str] = {
     "Cookie": COOKIE,
 }
 
+# -----------------------------
+# Home Assistant API Headers
+# -----------------------------
 HA_HEADERS: Dict[str, str] = {
     "Authorization": f"Bearer {HA_API_KEY}",
     "Content-Type": "application/json",
 }
 
-DRY_RUN: bool = False  # Global dry-run flag, set by main.py
-
-# Use normalize_area_name here to normalize IGNORED_HA_AREAS
-IGNORED_HA_AREAS = [
+# -----------------------------
+# Ignored Home Assistant Areas
+# -----------------------------
+IGNORED_HA_AREAS: list[str] = [
     normalize_area_name(name) for name in config.get("IGNORED_HA_AREAS", [])
 ]

@@ -76,6 +76,34 @@ class AlexaEntity:
         appliance_id (str): Alexa applianceId (from endpoints).
     """
 
+    def _normalize_ha_entity_id(self, description: str) -> str:
+        """
+        Helper to normalize Home Assistant entity ID from description.
+
+        Args:
+            description (str): The entity description.
+
+        Returns:
+            str: Normalized HA entity ID.
+        """
+        return description.replace(" via Home Assistant", "").lower()
+
+    def _generate_delete_id(self, description: str) -> str:
+        """
+        Helper to generate delete ID from description.
+
+        Args:
+            description (str): The entity description.
+
+        Returns:
+            str: Delete ID for API deletion.
+        """
+        return (
+            description.replace(".", "%23")
+            .replace(" via Home Assistant", "")
+            .lower()
+        )
+
     def __init__(
         self,
         entity_id: str,
@@ -95,14 +123,8 @@ class AlexaEntity:
         self.id: str = entity_id
         self.display_name: str = display_name
         self.description: str = description
-        self.ha_entity_id: str = self.description.replace(
-            " via Home Assistant", ""
-        ).lower()
-        self.delete_id: str = (
-            self.description.replace(".", "%23")
-            .replace(" via Home Assistant", "")
-            .lower()
-        )
+        self.ha_entity_id: str = self._normalize_ha_entity_id(description)
+        self.delete_id: str = self._generate_delete_id(description)
         self.appliance_id: str = appliance_id
 
     def __repr__(self) -> str:

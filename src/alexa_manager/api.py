@@ -45,6 +45,24 @@ def _safe_json_loads(text: str) -> Any:
     return json.loads(text)
 
 
+def _construct_alexa_entity_from_dict(entity_data: Dict[str, Any]) -> AlexaEntity:
+    """
+    Helper function to construct an AlexaEntity from a dictionary.
+
+    Args:
+        entity_data (Dict[str, Any]): Dictionary containing entity data.
+
+    Returns:
+        AlexaEntity: The constructed AlexaEntity object.
+    """
+    return AlexaEntity(
+        entity_id=entity_data.get("id") or entity_data.get("legacyAppliance", {}).get("applianceKey", ""),
+        display_name=entity_data.get("displayName") or entity_data.get("friendlyName", ""),
+        description=entity_data.get("description") or entity_data.get("legacyAppliance", {}).get("friendlyDescription", ""),
+        appliance_id=entity_data.get("legacyAppliance", {}).get("applianceId", ""),
+    )
+
+
 @rate_limited
 def get_entities(url: str = URLS["GET_ENTITIES"]) -> AlexaEntities:
     """
@@ -65,28 +83,26 @@ def get_entities(url: str = URLS["GET_ENTITIES"]) -> AlexaEntities:
         if response.text.strip():
             try:
                 response_json = response.json()
-            except Exception as e:
+            except Exception as exc:
                 logger.error(
-                    f"Error: Could not decode JSON from Alexa entities API: {e}"
+                    f"Error decoding JSON from Alexa entities API: {exc}. Response text: {response.text[:100]}"
                 )
                 return entities
-            for item in response_json:
-                if not all(k in item for k in ("id", "displayName", "description")):
+            for entity_dict in response_json:
+                if not all(k in entity_dict for k in ("id", "displayName", "description")):
                     logger.warning(
-                        f"Warning: Skipping entity with missing keys: {item}"
+                        f"Skipping entity with missing keys: {entity_dict}"
                     )
                     continue
-                entity = AlexaEntity(
-                    entity_id=item["id"],
-                    display_name=item["displayName"],
-                    description=item["description"],
-                )
+                entity = _construct_alexa_entity_from_dict(entity_dict)
                 entities.add_entity(entity)
             if DEBUG:
                 logger.debug(f"Loaded {len(entities.entities)} Alexa entities.")
+        else:
+            logger.warning("Received empty response from Alexa entities API.")
         return entities
-    except requests.RequestException as e:
-        logger.error(f"Request error while fetching Alexa entities: {e}")
+    except requests.RequestException as exc:
+        logger.error(f"Request error while fetching Alexa entities: {exc}")
         return AlexaEntities()
 
 
@@ -99,8 +115,7 @@ def get_graphql_endpoint_entities() -> AlexaEntities:
         AlexaEntities: A collection of AlexaEntity objects from GraphQL endpoint.
     """
     url = f"https://{URLS['GET_ENTITIES'].split('/')[2]}/nexus/v1/graphql"
-    data = {
-        "query": """
+    graphql_query = """
         query CustomerSmartHome {
             endpoints(endpointsQueryParams: { paginationParams: { disablePagination: true } }) {
                 items {
@@ -120,41 +135,39 @@ def get_graphql_endpoint_entities() -> AlexaEntities:
                 }
             }
         }
-        """
-    }
+    """
+    data = {"query": graphql_query}
     try:
         response = requests.post(url, headers=ALEXA_HEADERS, json=data, timeout=15)
         try:
             response_json = response.json()
-        except Exception as e:
-            logger.error(f"Error: Could not decode JSON from GraphQL endpoint API: {e}")
+        except Exception as exc:
+            logger.error(f"Error decoding JSON from GraphQL endpoint API: {exc}. Response text: {response.text[:100]}")
             return AlexaEntities()
         entities = AlexaEntities()
         try:
             items = response_json["data"]["endpoints"]["items"]
-        except Exception as e:
-            logger.error(f"Error: GraphQL response missing expected keys: {e}")
+        except Exception as exc:
+            logger.error(f"GraphQL response missing expected keys: {exc}. Response JSON: {json.dumps(response_json)[:100]}")
             return entities
         for item in items:
             try:
-                entity = AlexaEntity(
-                    entity_id=item["legacyAppliance"]["applianceKey"],
-                    display_name=item["friendlyName"],
-                    description=item["legacyAppliance"]["friendlyDescription"],
-                    appliance_id=item["legacyAppliance"].get("applianceId", ""),
-                )
+                entity = _construct_alexa_entity_from_dict(item)
                 entities.add_entity(entity)
-            except Exception as e:
+            except Exception as exc:
                 logger.warning(
-                    f"Warning: Skipping endpoint entity with missing keys: {e}"
+                    f"Skipping endpoint entity with missing keys: {exc}. Item: {item}"
                 )
                 continue
         if DEBUG:
-            with open(DEBUG_FILES["graphql"], "w", encoding="utf_8") as file:
-                json.dump(response_json, file)
+            try:
+                with open(DEBUG_FILES["graphql"], "w", encoding="utf_8") as file:
+                    json.dump(response_json, file)
+            except Exception as exc:
+                logger.error(f"Failed to write GraphQL debug file: {exc}")
         return entities
-    except Exception as e:
-        logger.error(f"Error fetching GraphQL endpoint entities: {e}")
+    except Exception as exc:
+        logger.error(f"Error fetching GraphQL endpoint entities: {exc}")
         return AlexaEntities()
 
 

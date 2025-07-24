@@ -34,8 +34,7 @@ from alexa_manager.utils import (
     run_with_progress_bar,
     print_table,
     convert_ha_area_name,
-    normalize_area_name,
-    format_appliance_id_for_api
+    format_appliance_id_for_api,
 )
 from alexa_manager.api import (
     get_entities,
@@ -115,7 +114,9 @@ def confirm_batch_action(item_descriptions: List[str], action_type: str) -> bool
     return response == "y"
 
 
-def process_deletion(item, item_type: str, dry_run: bool, collector: List[Dict[str, Any]]) -> None:
+def process_deletion(
+    item, item_type: str, dry_run: bool, collector: List[Dict[str, Any]]
+) -> None:
     """
     Handle deletion of a single entity or group, with dry run support.
 
@@ -135,6 +136,7 @@ def process_deletion(item, item_type: str, dry_run: bool, collector: List[Dict[s
         item_id = item.id
     if dry_run:
         from rich.console import Console
+
         console = Console()
         console.print(
             f"[bold yellow][DRY RUN][/bold yellow] Would DELETE {item_type}: [cyan]{name}[/cyan] (ID: {item_id}) at [green]{url}[/green]"
@@ -143,12 +145,14 @@ def process_deletion(item, item_type: str, dry_run: bool, collector: List[Dict[s
     delete_success = item.delete()
     if not delete_success:
         if item_type == "entity":
-            collector.append({
-                "name": name,
-                "entity_id": item_id,
-                "device_id": item.delete_id,
-                "description": item.description,
-            })
+            collector.append(
+                {
+                    "name": name,
+                    "entity_id": item_id,
+                    "device_id": item.delete_id,
+                    "description": item.description,
+                }
+            )
         else:
             collector.append({"name": name, "group_id": item_id})
 
@@ -166,7 +170,6 @@ def delete_entities(
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
     """
-    from alexa_manager.config import DRY_RUN
 
     failed_deletions: List[Dict[str, Any]] = []
     entity_descriptions = [
@@ -177,8 +180,10 @@ def delete_entities(
         if not confirm_batch_action(entity_descriptions, "delete"):
             print("Deletion cancelled by user.")
             return []
+
     def per_entity(entity, collector):
         process_deletion(entity, "entity", DRY_RUN, collector)
+
     run_with_progress_bar(
         list(entities.entities),
         "Deleting Alexa entities...",
@@ -207,7 +212,6 @@ def delete_groups(
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
     """
-    from alexa_manager.config import DRY_RUN
 
     failed_deletions: List[Dict[str, Any]] = []
     group_descriptions = [f"{group.name} (ID: {group.id})" for group in groups.groups]
@@ -215,8 +219,10 @@ def delete_groups(
         if not confirm_batch_action(group_descriptions, "delete"):
             print("Deletion cancelled by user.")
             return []
+
     def per_group(group, collector):
         process_deletion(group, "group", DRY_RUN, collector)
+
     run_with_progress_bar(
         list(groups.groups), "Deleting Alexa groups...", per_group, failed_deletions
     )
@@ -257,7 +263,9 @@ def create_groups_from_areas(
             (g for g in existing_groups if g["name"] == group_name), None
         )
         if existing_group:
-            logger.info(f"Group already exists: {group_name} (ID: {existing_group['id']})")
+            logger.info(
+                f"Group already exists: {group_name} (ID: {existing_group['id']})"
+            )
             continue
 
         # Create the group
@@ -275,6 +283,7 @@ def create_groups_from_areas(
             logger.info(f"Group created successfully: {group_name}")
 
     return failed_creations
+
 
 # Expose create_groups_from_areas for testing and patching
 create_groups_from_areas = create_groups_from_areas

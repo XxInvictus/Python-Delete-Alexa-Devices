@@ -41,6 +41,11 @@ class AlexaEntities:
     """
 
     def __init__(self) -> None:
+        """
+        Initialize an AlexaEntities object.
+
+        Sets the filter_text from config and initializes an empty entity list.
+        """
         self.entities: List[AlexaEntity] = []
         self.filter_text: str = config["DESCRIPTION_FILTER_TEXT"]
 
@@ -48,9 +53,14 @@ class AlexaEntities:
         """
         Add an AlexaEntity to the collection.
 
-        Args:
+        Parameters:
             entity (AlexaEntity): The entity to add.
+
+        Raises:
+            TypeError: If entity is not an AlexaEntity instance.
         """
+        if not isinstance(entity, AlexaEntity):
+            raise TypeError("entity must be an AlexaEntity instance.")
         self.entities.append(entity)
 
     def __repr__(self) -> str:
@@ -76,32 +86,6 @@ class AlexaEntity:
         appliance_id (str): Alexa applianceId (from endpoints).
     """
 
-    def _normalize_ha_entity_id(self, description: str) -> str:
-        """
-        Helper to normalize Home Assistant entity ID from description.
-
-        Args:
-            description (str): The entity description.
-
-        Returns:
-            str: Normalized HA entity ID.
-        """
-        return description.replace(" via Home Assistant", "").lower()
-
-    def _generate_delete_id(self, description: str) -> str:
-        """
-        Helper to generate delete ID from description.
-
-        Args:
-            description (str): The entity description.
-
-        Returns:
-            str: Delete ID for API deletion.
-        """
-        return (
-            description.replace(".", "%23").replace(" via Home Assistant", "").lower()
-        )
-
     def __init__(
         self,
         entity_id: str,
@@ -112,18 +96,55 @@ class AlexaEntity:
         """
         Initialize an AlexaEntity object.
 
-        Args:
+        Parameters:
             entity_id (str): The entity's unique identifier.
             display_name (str): The display name of the entity.
             description (str): Description of the entity.
             appliance_id (str): The Alexa applianceId (optional).
+
+        Raises:
+            TypeError: If any input is not of the expected type.
         """
+        if not isinstance(entity_id, str):
+            raise TypeError("entity_id must be a string.")
+        if not isinstance(display_name, str):
+            raise TypeError("display_name must be a string.")
+        if not isinstance(description, str):
+            raise TypeError("description must be a string.")
+        if not isinstance(appliance_id, str):
+            raise TypeError("appliance_id must be a string.")
         self.id: str = entity_id
         self.display_name: str = display_name
         self.description: str = description
         self.ha_entity_id: str = self._normalize_ha_entity_id(description)
         self.delete_id: str = self._generate_delete_id(description)
         self.appliance_id: str = appliance_id
+
+    def _normalize_ha_entity_id(self, description: str) -> str:
+        """
+        Normalize Home Assistant entity ID from description.
+
+        Parameters:
+            description (str): The entity description.
+
+        Returns:
+            str: Normalized HA entity ID.
+        """
+        return description.replace(" via Home Assistant", "").lower()
+
+    def _generate_delete_id(self, description: str) -> str:
+        """
+        Generate delete ID from description for API deletion.
+
+        Parameters:
+            description (str): The entity description.
+
+        Returns:
+            str: Delete ID for API deletion.
+        """
+        return (
+            description.replace(".", "%23").replace(" via Home Assistant", "").lower()
+        )
 
     def __repr__(self) -> str:
         """
@@ -143,25 +164,40 @@ class AlexaEntity:
         """
         url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
         if DRY_RUN:
-            console.print(
-                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
-            )
-            # Simulate a successful delete response with status 204
-            response_status = 204
-            if response_status == 204:
-                # Simulate the check for deletion (404)
-                check_status = 404
-                if check_status == 404:
-                    return True
-                else:
-                    raise requests.HTTPError(
-                        f"Entity {self.id} was not deleted. Status code: {check_status}, Response: [DRY RUN] Simulated deleted entity."
-                    )
+            return self._simulate_delete(url)
+        return self._delete_with_retry()
+
+    def _simulate_delete(self, url: str) -> bool:
+        """
+        Simulate the deletion of an Alexa entity in dry-run mode.
+
+        Parameters:
+            url (str): The API endpoint URL for deletion.
+
+        Returns:
+            bool: True if simulated deletion is successful, False otherwise.
+
+        Raises:
+            requests.HTTPError: If simulated deletion fails.
+        """
+        console.print(
+            f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
+        )
+        # Simulate a successful delete response with status 204
+        response_status = 204
+        if response_status == 204:
+            # Simulate the check for deletion (404)
+            check_status = 404
+            if check_status == 404:
+                return True
             else:
                 raise requests.HTTPError(
-                    f"Entity {self.id} deletion failed. Status code: {response_status}, Response: [DRY RUN] Simulated delete."
+                    f"Entity {self.id} was not deleted. Status code: {check_status}, Response: [DRY RUN] Simulated deleted entity."
                 )
-        return self._delete_with_retry()
+        else:
+            raise requests.HTTPError(
+                f"Entity {self.id} deletion failed. Status code: {response_status}, Response: [DRY RUN] Simulated delete."
+            )
 
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
@@ -169,6 +205,13 @@ class AlexaEntity:
     def _delete_with_retry(self) -> bool:
         """
         Internal method to perform the actual DELETE request with retry logic.
+        Uses exponential backoff and retries up to 3 times for transient errors.
+
+        Returns:
+            bool: True if deletion was successful, False otherwise.
+
+        Raises:
+            requests.HTTPError: If deletion fails after retries.
         """
         url = f"{URLS['DELETE_ENTITIES']}{self.delete_id}"
         if DO_NOT_DELETE:
@@ -195,6 +238,7 @@ class AlexaEntity:
     def _check_deleted(self) -> bool:
         """
         Check if the entity was deleted by querying the API.
+        Retries up to 3 times if a transient HTTP error occurs.
 
         Returns:
             bool: True if entity is deleted (404), False otherwise.
@@ -236,10 +280,17 @@ class HAArea:
         """
         Initialize a HAArea object.
 
-        Args:
+        Parameters:
             name (str): The name of the area.
             entity_ids (List[str]): List of child entity IDs in the area.
+
+        Raises:
+            TypeError: If name is not a string or entity_ids is not a list of strings.
         """
+        if not isinstance(name, str):
+            raise TypeError("name must be a string.")
+        if not isinstance(entity_ids, list) or not all(isinstance(eid, str) for eid in entity_ids):
+            raise TypeError("entity_ids must be a list of strings.")
         self.name = name
         self.entity_ids = entity_ids
 
@@ -262,15 +313,23 @@ class AlexaGroups:
     """
 
     def __init__(self):
+        """
+        Initialize an AlexaGroups object with an empty group list.
+        """
         self.groups: List[AlexaGroup] = []
 
     def add_group(self, group: "AlexaGroup") -> None:
         """
         Add an AlexaGroup to the collection.
 
-        Args:
+        Parameters:
             group (AlexaGroup): The group to add.
+
+        Raises:
+            TypeError: If group is not an AlexaGroup instance.
         """
+        if not isinstance(group, AlexaGroup):
+            raise TypeError("group must be an AlexaGroup instance.")
         self.groups.append(group)
 
     def __repr__(self) -> str:
@@ -297,10 +356,17 @@ class AlexaGroup:
         """
         Initialize an AlexaGroup object.
 
-        Args:
+        Parameters:
             name (str): The name of the group.
             group_id (str): The group's unique identifier (optional).
+
+        Raises:
+            TypeError: If name or group_id is not a string.
         """
+        if not isinstance(name, str):
+            raise TypeError("name must be a string.")
+        if not isinstance(group_id, str):
+            raise TypeError("group_id must be a string.")
         self.id: str = group_id
         self.name: str = name
         self.create_data: Dict[str, Any] = {
@@ -330,27 +396,26 @@ class AlexaGroup:
     def create(self) -> bool:
         """
         Create the Alexa group via the API, or simulate if DRY_RUN is True.
+        Uses exponential backoff and retries up to 3 times for transient errors.
 
         Returns:
             bool: True if creation was successful or simulated, False otherwise.
-        """
-        # Import DRY_RUN dynamically to ensure runtime value is used
-        from alexa_manager.config import DRY_RUN
 
+        Raises:
+            ValueError: If applianceIds are not all strings.
+            requests.HTTPError: If creation fails after retries.
+        """
+        from alexa_manager.config import DRY_RUN
         url = URLS.get("CREATE_GROUP", "")
         if DRY_RUN:
             console.print(
                 f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{self.name}[/cyan] with data: [green]{self.create_data}[/green] at [green]{url}[/green]"
             )
             return True  # Simulate success
-        # Do NOT re-serialize applianceIds; they should already be JSON strings with single-escaped quotes
         if "applianceIds" in self.create_data:
             for aid in self.create_data["applianceIds"]:
                 if not isinstance(aid, str):
-                    raise ValueError(
-                        "Each applianceId must be a JSON string, not a dict."
-                    )
-        # Manually serialize the payload to preserve single-escaped applianceIds
+                    raise ValueError("Each applianceId must be a JSON string, not a dict.")
         payload = json.dumps(self.create_data)
         response = requests.post(url, headers=ALEXA_HEADERS, data=payload, timeout=10)
         if DEBUG:
@@ -366,7 +431,6 @@ class AlexaGroup:
         Returns:
             bool: True if deletion was successful or simulated, False otherwise.
         """
-        # Failsafe: Always respect DRY_RUN at the very start
         if DRY_RUN:
             if DEBUG:
                 logger.debug(
@@ -376,7 +440,6 @@ class AlexaGroup:
                 f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{URLS.get('DELETE_GROUP', '')}{self.id}[/green]"
             )
             return True
-        # Debug output to confirm DRY_RUN value
         if DEBUG:
             logger.debug(
                 f"delete() called for group: {self.name} (ID: {self.id}), DRY_RUN={DRY_RUN}"
@@ -386,7 +449,6 @@ class AlexaGroup:
         if not url.startswith("http://") and not url.startswith("https://"):
             url = f"https://{url}"
         if DRY_RUN:
-            # Dry run mode: do not make any network requests or retries
             if DEBUG:
                 logger.debug(
                     f"DRY_RUN is enabled. Skipping actual HTTP DELETE for group: {self.name} (ID: {self.id})"
@@ -395,7 +457,6 @@ class AlexaGroup:
                 f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{self.name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
             )
             return True  # Simulate success
-        # Only call _delete_with_retry if not in dry run mode
         return self._delete_with_retry(url)
 
     @retry(
@@ -404,7 +465,16 @@ class AlexaGroup:
     def _delete_with_retry(self, url: str) -> bool:
         """
         Internal method to perform the actual DELETE request with retry logic.
-        Prevents network request if DRY_RUN is set (failsafe).
+        Uses exponential backoff and retries up to 3 times for transient errors.
+
+        Parameters:
+            url (str): The API endpoint URL for deletion.
+
+        Returns:
+            bool: True if deletion was successful, False otherwise.
+
+        Raises:
+            requests.HTTPError: If deletion fails after retries.
         """
         if DRY_RUN:
             if DEBUG:
@@ -458,8 +528,30 @@ class AlexaExpandedGroup(AlexaGroup):
         Initialize an AlexaExpandedGroup object with all fields from the API response.
         Sanitizes all list fields to ensure only hashable types are stored.
         Flattens nested dicts in metadata fields to avoid unhashable type errors.
+
+        Parameters:
+            name (str): The name of the group.
+            group_id (str): The group's unique identifier.
+            entity_id (str): The entityId field for the group.
+            entity_type (str): The entityType field.
+            group_type (str): The groupType field.
+            child_ids (List[Any]): List of child IDs in the group.
+            defaults (List[Any]): List of default settings for the group.
+            associated_unit_ids (List[Any]): List of associated unit IDs.
+            default_metadata_by_type (Dict[str, Any]): Metadata by type.
+            implicit_targeting_by_type (Dict[str, Any]): Implicit targeting by type.
+            appliance_ids (List[Any]): List of appliance IDs in the group.
+
+        Raises:
+            TypeError: If any input is not of the expected type.
         """
         super().__init__(name, group_id)
+        if not isinstance(entity_id, str):
+            raise TypeError("entity_id must be a string.")
+        if not isinstance(entity_type, str):
+            raise TypeError("entity_type must be a string.")
+        if not isinstance(group_type, str):
+            raise TypeError("group_type must be a string.")
         self.entity_id: str = entity_id
         self.entity_type: str = entity_type
         self.group_type: str = group_type
@@ -468,7 +560,6 @@ class AlexaExpandedGroup(AlexaGroup):
         self.associated_unit_ids: List[str] = sanitize_list(
             associated_unit_ids or [], key="id"
         )
-        # Do not flatten dicts for defaultMetadataByType and implicitTargetingByType
         self.default_metadata_by_type: Dict[str, Any] = (
             default_metadata_by_type
             if isinstance(default_metadata_by_type, dict)
@@ -507,13 +598,13 @@ class AlexaExpandedGroup(AlexaGroup):
     def update(self) -> bool:
         """
         Update the Alexa group via the API, or simulate if DRY_RUN is True.
+        Uses exponential backoff and retries up to 3 times for transient errors.
 
         Returns:
             bool: True if update was successful or simulated, False otherwise.
         """
         url = f"{URLS.get('GET_GROUPS', '')}/{self.id}"
         payload_dict = self.to_dict()
-        # Ensure applianceIds are all JSON strings as required by the API
         if "applianceIds" in payload_dict:
             formatted_appliance_ids = []
             for aid in payload_dict["applianceIds"]:
@@ -522,7 +613,6 @@ class AlexaExpandedGroup(AlexaGroup):
                 else:
                     formatted_appliance_ids.append(format_appliance_id_for_api(aid))
             payload_dict["applianceIds"] = formatted_appliance_ids
-        # Ensure associatedUnitIds is always a list
         if payload_dict.get("associatedUnitIds") is None:
             payload_dict["associatedUnitIds"] = []
         payload = json.dumps(payload_dict)

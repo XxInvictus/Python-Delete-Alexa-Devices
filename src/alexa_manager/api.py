@@ -86,19 +86,27 @@ def get_entities(url: str = URLS["GET_ENTITIES"]) -> AlexaEntities:
         if response.text.strip():
             try:
                 response_json = response.json()
+            except json.JSONDecodeError as exc:
+                logger.error(
+                    f"JSONDecodeError decoding Alexa entities API: {exc}. Response text: {response.text[:100]}"
+                )
+                return entities
             except Exception as exc:
                 logger.error(
-                    f"Error decoding JSON from Alexa entities API: {exc}. Response text: {response.text[:100]}"
+                    f"Unexpected error decoding JSON from Alexa entities API: {exc}. Response text: {response.text[:100]}"
                 )
                 return entities
             for entity_dict in response_json:
-                if not all(
-                    k in entity_dict for k in ("id", "displayName", "description")
-                ):
-                    logger.warning(f"Skipping entity with missing keys: {entity_dict}")
+                missing_keys = [k for k in ("id", "displayName", "description") if k not in entity_dict]
+                if missing_keys:
+                    logger.warning(f"Skipping entity with missing keys {missing_keys}: {entity_dict}")
                     continue
-                entity = _construct_alexa_entity_from_dict(entity_dict)
-                entities.add_entity(entity)
+                try:
+                    entity = _construct_alexa_entity_from_dict(entity_dict)
+                    entities.add_entity(entity)
+                except Exception as exc:
+                    logger.warning(f"Failed to construct AlexaEntity: {exc}. Entity dict: {entity_dict}")
+                    continue
             if DEBUG:
                 logger.debug(f"Loaded {len(entities.entities)} Alexa entities.")
         else:
@@ -458,6 +466,7 @@ def create_alexa_group_for_ha_area(
 ) -> bool:
     """
     Create an Alexa group for a given HA area with specified appliance IDs.
+    Respects the global DRY_RUN flag and does not perform creation if enabled.
 
     Args:
         area_name (str): Name of the HA area.
@@ -466,9 +475,10 @@ def create_alexa_group_for_ha_area(
         headers (Dict[str, str]): Alexa API headers.
 
     Returns:
-        bool: True if creation was successful, False otherwise.
+        bool: True if creation was successful, False otherwise (or always True in dry-run mode).
     """
     from alexa_manager.models import AlexaExpandedGroup
+    from alexa_manager.config import DRY_RUN
 
     new_group = AlexaExpandedGroup(
         name=area_name,
@@ -483,7 +493,10 @@ def create_alexa_group_for_ha_area(
         implicit_targeting_by_type={},
         appliance_ids=appliance_ids,
     )
-    # Removed interactive confirmation logic. Confirmation should be handled externally.
+    # Respect dry-run mode: do not perform actual creation
+    if DRY_RUN:
+        logging.info(f"[DRY-RUN] Would create Alexa group for area '{area_name}' with appliance IDs: {appliance_ids}")
+        return True
     try:
         response = requests.post(
             url_base, headers=headers, json=new_group.to_dict(), timeout=15
@@ -566,6 +579,7 @@ def sync_ha_alexa_groups(
     Returns:
         Dict[str, Any]: Summary of actions taken (created, updated, skipped, errors).
     """
+    from alexa_manager.config import DRY_RUN
     results = {"created": [], "updated": [], "skipped": [], "errors": []}
     # Find missing groups and create them
     if sync_groups:

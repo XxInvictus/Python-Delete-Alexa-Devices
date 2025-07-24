@@ -6,16 +6,20 @@ Configuration loading and constants for the Alexa management script.
 This module centralizes configuration logic and constants, separating them from main.py for better maintainability and clarity.
 """
 
+from typing import Dict, Any
 import logging
 import os
 import sys
-from typing import Dict
 
-# Use the built-in tomllib for TOML parsing (Python 3.11+)
-if sys.version_info >= (3, 11):
+try:
     import tomllib
-else:
+except ImportError:
     raise ImportError("Python 3.11+ is required for tomllib support.")
+
+try:
+    from pydantic import BaseModel, ValidationError, Field
+except ImportError:
+    raise ImportError("pydantic must be installed via uv for config validation.")
 
 
 # NOTE: Logging is set up twice (here and after config loading) to ensure
@@ -86,23 +90,43 @@ def ensure_user_config_exists(global_path: str, user_path: str) -> None:
             dst.write(src.read())
 
 
+class AlexaManagerConfig(BaseModel):
+    DEBUG: bool = False
+    SHOULD_SLEEP: bool = True
+    DO_NOT_DELETE: bool = False
+    ALEXA_HOST: str = "localhost"
+    COOKIE: str = ""
+    X_AMZN_ALEXA_APP: str = ""
+    CSRF: str = ""
+    DELETE_SKILL: str = ""
+    USER_AGENT: str = "Mozilla/5.0"
+    ROUTINE_VERSION: str = "1.0"
+    HA_HOST: str = "localhost"
+    HA_API_KEY: str = ""
+    IGNORED_HA_AREAS: list[str] = Field(default_factory=list)
+    DESCRIPTION_FILTER_TEXT: str = ""  # Added for compatibility with tests and AlexaEntities
+
+
 def load_config(
     global_path: str = "config/global_config.toml",
     user_path: str = "config/user_config.toml",
-) -> Dict:
+) -> Dict[str, Any]:
     """
-    Load and merge configuration from config/global_config.toml and config/user_config.toml.
+    Load and validate configuration from config/global_config.toml and config/user_config.toml.
     Sets up logging at INFO level before config is loaded, then updates log level.
+
+    Returns a dictionary containing all config keys (validated and extra),
+    so tests and extensions can access arbitrary keys.
 
     Args:
         global_path (str): Path to the global config file.
         user_path (str): Path to the user config file.
 
     Returns:
-        Dict: The merged configuration dictionary.
+        Dict[str, Any]: The merged configuration dictionary (validated fields + extra keys).
 
     Raises:
-        SystemExit: If config files are malformed or cannot be loaded.
+        SystemExit: If config files are malformed or cannot be loaded/validated.
     """
     setup_initial_logging()
     try:
@@ -116,9 +140,18 @@ def load_config(
     except (FileNotFoundError, tomllib.TOMLDecodeError) as e:
         logging.error(f"Error loading {user_path}: {e}")
         sys.exit(1)
-    config = {**global_config, **user_config}
-    update_logging_level(config.get("DEBUG", False))
-    return config
+    merged_config = {**global_config, **user_config}
+    # Validate known fields, but keep all keys for compatibility
+    try:
+        validated_config = AlexaManagerConfig(**merged_config)
+    except ValidationError as e:
+        logging.error(f"Configuration validation error: {e}")
+        sys.exit(1)
+    update_logging_level(validated_config.DEBUG)
+    # Return all keys, with validated fields updated
+    result = dict(merged_config)
+    result.update(validated_config.model_dump())
+    return result
 
 
 def normalize_area_name(area_name: str) -> str:

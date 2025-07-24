@@ -97,15 +97,23 @@ def get_entities(url: str = URLS["GET_ENTITIES"]) -> AlexaEntities:
                 )
                 return entities
             for entity_dict in response_json:
-                missing_keys = [k for k in ("id", "displayName", "description") if k not in entity_dict]
+                missing_keys = [
+                    k
+                    for k in ("id", "displayName", "description")
+                    if k not in entity_dict
+                ]
                 if missing_keys:
-                    logger.warning(f"Skipping entity with missing keys {missing_keys}: {entity_dict}")
+                    logger.warning(
+                        f"Skipping entity with missing keys {missing_keys}: {entity_dict}"
+                    )
                     continue
                 try:
                     entity = _construct_alexa_entity_from_dict(entity_dict)
                     entities.add_entity(entity)
                 except Exception as exc:
-                    logger.warning(f"Failed to construct AlexaEntity: {exc}. Entity dict: {entity_dict}")
+                    logger.warning(
+                        f"Failed to construct AlexaEntity: {exc}. Entity dict: {entity_dict}"
+                    )
                     continue
             if DEBUG:
                 logger.debug(f"Loaded {len(entities.entities)} Alexa entities.")
@@ -495,7 +503,9 @@ def create_alexa_group_for_ha_area(
     )
     # Respect dry-run mode: do not perform actual creation
     if DRY_RUN:
-        logging.info(f"[DRY-RUN] Would create Alexa group for area '{area_name}' with appliance IDs: {appliance_ids}")
+        logging.info(
+            f"[DRY-RUN] Would create Alexa group for area '{area_name}' with appliance IDs: {appliance_ids}"
+        )
         return True
     try:
         response = requests.post(
@@ -579,7 +589,6 @@ def sync_ha_alexa_groups(
     Returns:
         Dict[str, Any]: Summary of actions taken (created, updated, skipped, errors).
     """
-    from alexa_manager.config import DRY_RUN
     results = {"created": [], "updated": [], "skipped": [], "errors": []}
     # Find missing groups and create them
     if sync_groups:

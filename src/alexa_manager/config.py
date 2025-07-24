@@ -104,7 +104,9 @@ class AlexaManagerConfig(BaseModel):
     HA_HOST: str = "localhost"
     HA_API_KEY: str = ""
     IGNORED_HA_AREAS: list[str] = Field(default_factory=list)
-    DESCRIPTION_FILTER_TEXT: str = ""  # Added for compatibility with tests and AlexaEntities
+    DESCRIPTION_FILTER_TEXT: str = (
+        ""  # Added for compatibility with tests and AlexaEntities
+    )
 
 
 def load_config(

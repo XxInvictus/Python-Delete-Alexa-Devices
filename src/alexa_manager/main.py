@@ -275,6 +275,7 @@ def create_groups_from_areas(
             json.loads(format_appliance_id_for_api(ha_entity_id))["applianceId"]
             for ha_entity_id in ha_entity_ids
         ]
+        # Ensure DRY_RUN is respected at runtime
         success = group.create()
         if not success:
             logger.error(f"Failed to create group: {group_name}")

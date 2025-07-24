@@ -334,6 +334,8 @@ class AlexaGroup:
         Returns:
             bool: True if creation was successful or simulated, False otherwise.
         """
+        # Import DRY_RUN dynamically to ensure runtime value is used
+        from alexa_manager.config import DRY_RUN
         url = URLS.get("CREATE_GROUP", "")
         if DRY_RUN:
             console.print(

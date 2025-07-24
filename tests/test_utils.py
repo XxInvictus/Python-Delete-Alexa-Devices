@@ -78,22 +78,16 @@ def test_rate_limited_multiple_calls(monkeypatch):
     import sys
     import time
     import alexa_manager.config as config_module
-
     monkeypatch.setattr(config_module, "SHOULD_SLEEP", True)
     sys.modules.pop("alexa_manager.utils", None)
     import alexa_manager.utils as utils_module
-
     sleep_calls = []
-
     def fake_sleep(secs):
         sleep_calls.append(secs)
-
     monkeypatch.setattr(time, "sleep", fake_sleep)
-
     @utils_module.rate_limited
     def foo(x):
         return x
-
     for i in range(3):
         foo(i)
     assert sleep_calls == [0.2, 0.2, 0.2]

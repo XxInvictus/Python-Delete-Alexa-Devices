@@ -1,7 +1,7 @@
 #####
 ### User Ignores
 #####
-*_debug.json
+*debug*.json
 user_config.toml
 .idea/
 

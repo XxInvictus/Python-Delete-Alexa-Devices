@@ -15,7 +15,12 @@ from alexa_manager.config import (
     URLS,
     ALEXA_HEADERS,
 )
-from alexa_manager.models import AlexaEntities, AlexaEntity, AlexaGroups, AlexaGroup
+from alexa_manager.models import (
+    AlexaEntities,
+    AlexaEntity,
+    AlexaGroups,
+    AlexaExpandedGroup,
+)
 from alexa_manager.utils import rate_limited
 import logging
 
@@ -179,11 +184,27 @@ def get_groups(url: str = URLS["GET_GROUPS"]) -> AlexaGroups:
                 )
                 return groups
             for item in response_json["applianceGroups"]:
-                if not all(k in item for k in ("name", "groupId")):
-                    logger.warning(f"Warning: Skipping group with missing keys: {item}")
+                try:
+                    expanded_group = AlexaExpandedGroup(
+                        name=item.get("name", ""),
+                        group_id=item.get("groupId", ""),
+                        entity_id=item.get("entityId", ""),
+                        entity_type=item.get("entityType", "GROUP"),
+                        group_type=item.get("groupType", "APPLIANCE"),
+                        child_ids=item.get("childIds", []),
+                        defaults=item.get("defaults", []),
+                        associated_unit_ids=item.get("associatedUnitIds", []),
+                        default_metadata_by_type=item.get("defaultMetadataByType", {}),
+                        implicit_targeting_by_type=item.get(
+                            "implicitTargetingByType", {}
+                        ),
+                        appliance_ids=item.get("applianceIds", []),
+                    )
+                    groups.add_group(expanded_group)
+                except Exception as e:
+                    logger.error(f"Exception in AlexaExpandedGroup instantiation: {e}")
+                    logger.error(f"Problematic group item: {item}")
                     continue
-                group = AlexaGroup(name=item["name"], group_id=item["groupId"])
-                groups.add_group(group)
             if DEBUG:
                 with open(DEBUG_FILES["groups"], "w", encoding="utf_8") as file:
                     json.dump(response_json["applianceGroups"], file)

@@ -16,6 +16,8 @@ import argparse
 import json
 import logging
 import sys
+import time
+import uuid
 from typing import Any, Dict, List
 
 from alexa_manager.config import (
@@ -371,6 +373,11 @@ Examples:
         action="store_true",
         help="Enable interactive mode for batch actions, requiring user confirmation.",
     )
+    parser.add_argument(
+        "--test-alexa-groups",
+        action="store_true",
+        help="Test Alexa group creation, retrieval, and deletion with a randomly selected ApplianceId.",
+    )
     args = parser.parse_args()
     # Set global dry-run flag
     import alexa_manager.config as config_mod
@@ -378,6 +385,11 @@ Examples:
     config_mod.DRY_RUN = args.dry_run
     global DRY_RUN
     DRY_RUN = args.dry_run
+
+    # Run test_alexa_groups and exit if requested
+    if args.test_alexa_groups:
+        test_alexa_groups()
+        return
 
     alexa_only = args.alexa_only
 
@@ -542,3 +554,134 @@ if __name__ == "__main__":
 
         traceback.print_exc()
         sys.exit(1)
+
+
+def test_alexa_groups() -> None:
+    """
+    Test Alexa group creation, update, retrieval, and deletion with randomly selected ApplianceIds.
+    Uses the correct applianceId from endpoint objects, not entityId or applianceKey.
+    Steps:
+        1. Select two distinct endpoints and use their applianceId for group creation/update.
+        2. Create a group with the first applianceId (formatted for API).
+        3. Retrieve and confirm creation.
+        4. Update the group by adding the second applianceId (formatted for API).
+        5. Retrieve and confirm both applianceIds are present.
+        6. Delete the group.
+    """
+    import random
+    from alexa_manager.api import get_graphql_endpoint_entities, get_groups
+    from rich import print as rprint
+
+    endpoints = get_graphql_endpoint_entities().entities
+    if not endpoints:
+        rprint("[red]No endpoints found. Cannot test Alexa group creation.[/red]")
+        return
+    if len(endpoints) < 2:
+        rprint(
+            "[red]Not enough endpoints to test group update with multiple ApplianceIds.[/red]"
+        )
+        return
+    # Select two distinct endpoints and use their applianceId
+    endpoint1, endpoint2 = random.sample(endpoints, 2)
+    appliance_id_1 = getattr(endpoint1, "appliance_id", None)
+    appliance_id_2 = getattr(endpoint2, "appliance_id", None)
+    rprint(
+        f"[yellow]Selected applianceIds: {appliance_id_1}, {appliance_id_2}[/yellow]"
+    )
+    if not appliance_id_1 or not appliance_id_2:
+        rprint(
+            "[red]Could not retrieve applianceId from endpoints. Check endpoint data structure.[/red]"
+        )
+        return
+    from alexa_manager.models import AlexaGroup, format_appliance_id_for_api
+
+    placeholder_name = f"TestGroup{str(uuid.uuid4())[:8]}"
+    group = AlexaGroup(name=placeholder_name)
+    group.create_data["applianceIds"] = [format_appliance_id_for_api(appliance_id_1)]
+    rprint(f"[blue]Creating group with applianceId: {appliance_id_1}[/blue]")
+    success = group.create()
+    if not success:
+        rprint(f"[red]Failed to create group with ApplianceId {appliance_id_1}.[/red]")
+        return
+    # Wait for backend consistency
+    time.sleep(2)
+    # Retrieve groups and confirm creation
+    groups = get_groups().groups
+    rprint(f"[yellow]All group names returned: {[g.name for g in groups]}[/yellow]")
+    created_group = next(
+        (
+            g
+            for g in groups
+            if g.name.strip().lower() == placeholder_name.strip().lower()
+        ),
+        None,
+    )
+    if not created_group:
+        rprint(
+            f"[red]Group creation verification failed for '{placeholder_name}'. Group not found in GET response.[/red]"
+        )
+        rprint(f"[red]Full GET response: {groups}[/red]")
+        return
+    # For GET, applianceIds are raw strings in AlexaExpandedGroup.appliance_ids
+    expected_raw_id = json.loads(format_appliance_id_for_api(appliance_id_1))[
+        "applianceId"
+    ]
+    if expected_raw_id in getattr(created_group, "appliance_ids", []):
+        rprint(
+            f"[green]Group '{placeholder_name}' created successfully with ApplianceId '{expected_raw_id}'.[/green]"
+        )
+    else:
+        rprint(
+            f"[red]Group creation verification failed for '{placeholder_name}'. ApplianceId not found in group.[/red]"
+        )
+        rprint(f"[red]Group data: {getattr(created_group, 'appliance_ids', [])}[red]")
+        return
+    # Update the group by adding a second applianceId (formatted for API)
+    # Avoid duplicates and preserve correct format
+    existing_ids = set(getattr(created_group, "appliance_ids", []))
+    new_id_raw = json.loads(format_appliance_id_for_api(appliance_id_2))["applianceId"]
+    updated_appliance_ids = list(existing_ids) + [new_id_raw]
+    # Use AlexaExpandedGroup for update
+    created_group.appliance_ids = updated_appliance_ids
+    rprint(f"[blue]Updating group to add applianceId: {appliance_id_2}[/blue]")
+    update_success = created_group.update()
+    if not update_success:
+        rprint(
+            f"[red]Failed to update group '{placeholder_name}' with additional ApplianceId '{appliance_id_2}'.[/red]"
+        )
+        # If DEBUG is False, attempt to delete the group even if update fails
+        from alexa_manager.config import DEBUG
+
+        if not DEBUG:
+            rprint(
+                f"[yellow]DEBUG is False. Attempting to delete group '{placeholder_name}' despite update failure.[/yellow]"
+            )
+            deleted = created_group.delete()
+            if deleted:
+                rprint(f"[green]Group '{placeholder_name}' deleted successfully.[/green]")
+            else:
+                rprint(f"[red]Failed to delete group '{placeholder_name}'.[/red]")
+        return
+    # Retrieve group again and confirm both applianceIds are present (raw string check)
+    groups = get_groups().groups
+    updated_group = next((g for g in groups if g.name == placeholder_name), None)
+    if updated_group:
+        present_ids = set(getattr(updated_group, "appliance_ids", []))
+        rprint(f"[yellow]Group applianceIds after update: {present_ids}[/yellow]")
+        if expected_raw_id in present_ids and new_id_raw in present_ids:
+            rprint(
+                f"[green]Group '{placeholder_name}' updated successfully with ApplianceIds '{expected_raw_id}' and '{new_id_raw}'.[/green]"
+            )
+        else:
+            rprint(
+                f"[red]Group update verification failed: missing ApplianceIds in '{placeholder_name}'.[/red]"
+            )
+    else:
+        rprint(f"[red]Group '{placeholder_name}' not found after update.[/red]")
+        return
+    # Delete the group
+    deleted = updated_group.delete() if updated_group else False
+    if deleted:
+        rprint(f"[green]Group '{placeholder_name}' deleted successfully.[/green]")
+    else:
+        rprint(f"[red]Failed to delete group '{placeholder_name}'.[/red]")

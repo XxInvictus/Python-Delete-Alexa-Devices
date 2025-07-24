@@ -33,6 +33,27 @@ def test_read_toml_file_invalid(tmp_path):
         read_toml_file(str(file))
 
 
+def test_read_toml_file_empty(tmp_path):
+    """
+    Test reading an empty TOML file returns an empty dictionary.
+    """
+    file = tmp_path / "empty.toml"
+    file.write_text("")
+    result = read_toml_file(str(file))
+    assert result == {}
+
+
+def test_read_toml_file_nested(tmp_path):
+    """
+    Test reading a TOML file with nested structures.
+    """
+    file = tmp_path / "nested.toml"
+    file.write_text('[section]\nfoo = "bar"\n')
+    result = read_toml_file(str(file))
+    assert "section" in result
+    assert result["section"]["foo"] == "bar"
+
+
 def test_ensure_user_config_exists_toml(tmp_path):
     """
     Test that user config is created if it does not exist (TOML).
@@ -58,3 +79,38 @@ def test_load_config_merges_toml(monkeypatch, tmp_path):
     assert config["foo"] == 1
     assert config["bar"] == 3
     assert config["baz"] == 4
+
+
+def test_load_config_missing_files(tmp_path):
+    """
+    Test load_config handles missing config files gracefully (should exit).
+    """
+    global_path = tmp_path / "missing_global.toml"
+    user_path = tmp_path / "missing_user.toml"
+    with pytest.raises(SystemExit):
+        load_config(str(global_path), str(user_path))
+
+
+def test_load_config_large_files(tmp_path):
+    """
+    Test load_config handles very large config files.
+    """
+    global_path = tmp_path / "large_global.toml"
+    user_path = tmp_path / "large_user.toml"
+    global_path.write_text("\n".join([f"key{i} = {i}" for i in range(1000)]))
+    user_path.write_text("\n".join([f"key{i} = {i+1000}" for i in range(1000)]))
+    config = load_config(str(global_path), str(user_path))
+    assert config["key999"] == 1999
+
+
+def test_load_config_invalid_types(tmp_path):
+    """
+    Test load_config handles invalid data types in config files.
+    """
+    global_path = tmp_path / "invalid_types.toml"
+    user_path = tmp_path / "user.toml"
+    global_path.write_text('foo = [1, 2, 3]\nbar = {baz = "qux"}')
+    user_path.write_text('bar = "override"')
+    config = load_config(str(global_path), str(user_path))
+    assert isinstance(config["foo"], list)
+    assert config["bar"] == "override"

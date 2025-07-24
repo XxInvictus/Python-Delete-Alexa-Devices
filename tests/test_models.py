@@ -15,10 +15,12 @@ from alexa_manager.models import (
 from unittest.mock import patch
 
 
-class DummyEntity(AlexaEntity):
+class MockAlexaEntity(AlexaEntity):
     def __init__(self):
         super().__init__(
-            entity_id="dummy_id", display_name="Dummy", description="Dummy desc"
+            entity_id="mock_id",
+            display_name="MockEntity",
+            description="Mock description",
         )
 
 
@@ -26,13 +28,13 @@ def test_alexa_entity_repr():
     """
     Test __repr__ for AlexaEntity returns expected string.
     """
-    entity = AlexaEntity("id1", "Lamp", "lamp via Home Assistant", "appl1")
-    result = repr(entity)
-    assert "AlexaEntity" in result
-    assert "id1" in result
-    assert "Lamp" in result
-    assert "lamp via Home Assistant" in result
-    assert "appl1" in result
+    entity_instance = AlexaEntity("id1", "Lamp", "lamp via Home Assistant", "appl1")
+    repr_result = repr(entity_instance)
+    assert "AlexaEntity" in repr_result
+    assert "id1" in repr_result
+    assert "Lamp" in repr_result
+    assert "lamp via Home Assistant" in repr_result
+    assert "appl1" in repr_result
 
 
 def test_alexa_entities_add_and_repr():
@@ -131,8 +133,65 @@ def test_get_request_dry_run():
     """
     with patch("requests.get") as mock_get:
         mock_get.return_value.status_code = 404
-        entity = DummyEntity()
+        entity = MockAlexaEntity()
         # _check_deleted should call requests.get and return True for 404
         result = entity._check_deleted()
         mock_get.assert_called_once()
         assert result is True
+
+
+def test_alexa_entity_invalid_params():
+    """
+    Test AlexaEntity raises TypeError for missing required parameters.
+    """
+    try:
+        AlexaEntity()
+    except TypeError:
+        assert True
+    else:
+        assert False, "AlexaEntity should raise TypeError for missing params"
+
+
+def test_alexa_entities_empty():
+    """
+    Test AlexaEntities handles empty entity list.
+    """
+    entities = AlexaEntities()
+    assert entities.entities == []
+    assert "AlexaEntities" in repr(entities)
+
+
+def test_alexa_entities_large():
+    """
+    Test AlexaEntities handles a large number of entities.
+    """
+    entities = AlexaEntities()
+    for i in range(1000):
+        entities.add_entity(AlexaEntity(str(i), f"Device {i}", "desc"))
+    assert len(entities.entities) == 1000
+
+
+def test_alexa_groups_duplicate_ids():
+    """
+    Test AlexaGroups allows duplicate group IDs and both are present.
+    """
+    groups = AlexaGroups()
+    group1 = AlexaGroup("Room", "dup")
+    group2 = AlexaGroup("Room", "dup")
+    groups.add_group(group1)
+    groups.add_group(group2)
+    assert groups.groups.count(group1) == 1
+    assert groups.groups.count(group2) == 1
+    assert len(groups.groups) == 2
+
+
+def test_alexa_group_invalid_params():
+    """
+    Test AlexaGroup raises TypeError for missing required parameters.
+    """
+    try:
+        AlexaGroup()
+    except TypeError:
+        assert True
+    else:
+        assert False, "AlexaGroup should raise TypeError for missing params"

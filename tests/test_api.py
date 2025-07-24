@@ -14,16 +14,16 @@ def test_get_entities_empty(monkeypatch):
     Test get_entities returns empty AlexaEntities on empty response.
     """
 
-    class FakeResponse:
+    class MockEmptyResponse:
         text = ""
 
         def json(self):
             return []
 
-    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
-    entities = get_entities()
-    assert isinstance(entities, AlexaEntities)
-    assert entities.entities == []
+    monkeypatch.setattr("requests.get", lambda *args, **kwargs: MockEmptyResponse())
+    entities_result = get_entities()
+    assert isinstance(entities_result, AlexaEntities)
+    assert entities_result.entities == []
 
 
 def test_get_entities_malformed_json(monkeypatch):
@@ -31,16 +31,16 @@ def test_get_entities_malformed_json(monkeypatch):
     Test get_entities handles malformed JSON gracefully.
     """
 
-    class FakeResponse:
+    class MockMalformedResponse:
         text = "bad json"
 
         def json(self):
             raise ValueError("bad json")
 
-    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
-    entities = get_entities()
-    assert isinstance(entities, AlexaEntities)
-    assert entities.entities == []
+    monkeypatch.setattr("requests.get", lambda *args, **kwargs: MockMalformedResponse())
+    entities_result = get_entities()
+    assert isinstance(entities_result, AlexaEntities)
+    assert entities_result.entities == []
 
 
 def test_update_alexa_group_success(monkeypatch):
@@ -425,3 +425,66 @@ def test_sync_alexa_group_entities_skipped():
         group, desired_appliance_ids, "full", [group], "fake_url", {}
     )
     assert result == "skipped"
+
+
+def test_get_entities_large_response(monkeypatch):
+    """
+    Test get_entities handles a large response efficiently and correctly.
+    """
+
+    class FakeResponse:
+        def json(self):
+            return [
+                {
+                    "id": str(i),
+                    "displayName": f"Entity {i}",
+                    "description": f"Description {i}",
+                }
+                for i in range(1000)
+            ]
+
+        text = "large json"
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
+    entities = get_entities()
+    assert len(entities.entities) == 1000
+
+
+def test_update_alexa_group_invalid_data(monkeypatch):
+    """
+    Test update_alexa_group handles invalid group data (missing keys).
+    """
+    groups = [{"name": "Test Group"}]  # Missing 'id'
+    updated_fields = {"name": "Updated Group"}
+    with pytest.raises(ValueError):
+        update_alexa_group("group123", updated_fields, groups)
+
+
+def test_update_alexa_group_timeout(monkeypatch):
+    """
+    Test update_alexa_group handles request timeout gracefully.
+    """
+    groups = [{"id": "group123", "name": "Test Group"}]
+    updated_fields = {"name": "Updated Group"}
+    import requests
+
+    def raise_timeout(*a, **k):
+        raise requests.Timeout("Timeout error")
+
+    monkeypatch.setattr("requests.put", raise_timeout)
+    result = update_alexa_group("group123", updated_fields, groups)
+    assert result is False
+
+
+def test_find_group_by_id_duplicate_ids():
+    """
+    Test find_group_by_id returns the first match when duplicate IDs exist.
+    """
+    from alexa_manager.api import find_group_by_id
+
+    groups = [
+        {"id": "dup", "name": "First"},
+        {"id": "dup", "name": "Second"},
+    ]
+    result = find_group_by_id(groups, "dup")
+    assert result["name"] == "First"

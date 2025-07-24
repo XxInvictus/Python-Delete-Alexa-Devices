@@ -15,28 +15,28 @@ def test_main_get_entities(monkeypatch):
     Test main CLI with --get-entities argument outputs entities table.
     """
     monkeypatch.setattr(sys, "argv", ["main.py", "--get-entities"])
-    called = {}
+    cli_output_flag = {}
 
-    def fake_print_table(data, columns, title):
-        called["printed"] = True
-        assert isinstance(data, list)
-        assert isinstance(columns, list)
-        assert isinstance(title, str)
+    def mock_print_table(entity_data, column_headers, table_title):
+        cli_output_flag["printed"] = True
+        assert isinstance(entity_data, list)
+        assert isinstance(column_headers, list)
+        assert isinstance(table_title, str)
 
-    monkeypatch.setattr(main, "print_table", fake_print_table)
+    monkeypatch.setattr(main, "print_table", mock_print_table)
 
-    class DummyEntity:
+    class MockEntity:
         id = "id1"
         display_name = "Lamp"
         ha_entity_id = "lamp"
         description = "lamp via Home Assistant"
 
-    class DummyAlexaEntities:
-        entities = [DummyEntity()]
+    class MockAlexaEntities:
+        entities = [MockEntity()]
 
-    monkeypatch.setattr(main, "get_entities", lambda: DummyAlexaEntities())
+    monkeypatch.setattr(main, "get_entities", lambda: MockAlexaEntities())
     main.main()
-    assert called.get("printed")
+    assert cli_output_flag.get("printed")
 
 
 def test_main_no_args(monkeypatch):
@@ -176,7 +176,7 @@ def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
     # Patch IGNORED_HA_AREAS constant
     monkeypatch.setattr(main, "IGNORED_HA_AREAS", ["Garage"])
     # Patch normalization to identity for test
-    monkeypatch.setattr(main, "normalize_area_name", lambda name: name)
+    monkeypatch.setattr(main, "convert_ha_area_name", lambda name: name)
     # Patch dependencies
     monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MagicMock())
     monkeypatch.setattr(

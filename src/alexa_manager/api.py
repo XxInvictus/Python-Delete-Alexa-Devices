@@ -299,9 +299,9 @@ def _normalize_alexa_appliance_id(appliance_id: str) -> str:
     Example:
         'SKILL_...==_sensor#back_tap_timer_soil_temperature_1' -> 'sensor.back_tap_timer_soil_temperature_1'
     """
-    if '==_' in appliance_id:
-        appliance_id = appliance_id.split('==_')[-1]
-    return appliance_id.replace('#', '.')
+    if "==_" in appliance_id:
+        appliance_id = appliance_id.split("==_")[-1]
+    return appliance_id.replace("#", ".")
 
 
 def _normalize_ha_entity_id(ha_entity_id: str) -> str:
@@ -510,7 +510,10 @@ def find_missing_ha_groups(
 
 
 def create_alexa_group_for_ha_area(
-    area_name: str, appliance_ids: List[str], url_base: str, headers: Dict[str, str] = None
+    area_name: str,
+    appliance_ids: List[str],
+    url_base: str,
+    headers: Dict[str, str] = None,
 ) -> bool:
     """
     Create an Alexa group for a given HA area with specified appliance IDs.

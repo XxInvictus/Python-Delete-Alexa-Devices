@@ -658,7 +658,9 @@ def test_alexa_groups() -> None:
             )
             deleted = created_group.delete()
             if deleted:
-                rprint(f"[green]Group '{placeholder_name}' deleted successfully.[/green]")
+                rprint(
+                    f"[green]Group '{placeholder_name}' deleted successfully.[/green]"
+                )
             else:
                 rprint(f"[red]Failed to delete group '{placeholder_name}'.[/red]")
         return

@@ -113,7 +113,13 @@ def print_table(data: List[Dict[str, Any]], columns: List[str], title: str) -> N
     for col in columns:
         table.add_column(col)
     for row in data:
-        table.add_row(*[str(row.get(col, "")) for col in columns])
+        # Handle non-dict rows gracefully
+        if isinstance(row, dict):
+            table.add_row(*[str(row.get(col, "")) for col in columns])
+        else:
+            # If not a dict, fill columns with str(row) in first column, rest empty
+            values = [str(row)] + ["" for _ in columns[1:]]
+            table.add_row(*values)
     if not data:
         console.print(f"[yellow]No {title.lower()} found.[/yellow]")
     else:
@@ -249,6 +255,7 @@ def dry_run_action(action: str, target: str, url: str, extra: str = "") -> None:
     """
     try:
         from rich.console import Console
+
         console = Console()
         msg = f"[bold yellow][DRY RUN][/bold yellow] Would {action} {target} at [green]{url}[/green]"
         if extra:

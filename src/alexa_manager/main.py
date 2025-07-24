@@ -35,6 +35,7 @@ from alexa_manager.utils import (
     print_table,
     convert_ha_area_name,
     normalize_area_name,
+    format_appliance_id_for_api
 )
 from alexa_manager.api import (
     get_entities,
@@ -94,12 +95,12 @@ AREA = "Area"
 # ------------------
 
 
-def batch_confirm_action(actions: List[str], action_type: str) -> bool:
+def confirm_batch_action(item_descriptions: List[str], action_type: str) -> bool:
     """
     Prompt the user for confirmation before performing a batch of API actions.
 
     Args:
-        actions (List[str]): List of action descriptions.
+        item_descriptions (List[str]): List of item descriptions.
         action_type (str): Type of action (e.g., 'delete', 'create').
 
     Returns:
@@ -107,76 +108,49 @@ def batch_confirm_action(actions: List[str], action_type: str) -> bool:
     """
     print("\nCONFIRMATION REQUIRED:")
     print(f"You are about to {action_type} the following items:")
-    for action in actions:
-        print(f"  - {action}")
+    for description in item_descriptions:
+        print(f"  - {description}")
     print("Proceed with all? (y/n): ", end="", flush=True)
     response = input().strip().lower()
     return response == "y"
 
 
-def create_groups_from_areas(
-    ha_areas: Dict[str, Any], config: Dict[str, Any], interactive_mode: bool = False
-) -> List[Dict[str, Any]]:
+def process_deletion(item, item_type: str, dry_run: bool, collector: List[Dict[str, Any]]) -> None:
     """
-    Create Alexa groups from Home Assistant areas, excluding those in the ignore list.
+    Handle deletion of a single entity or group, with dry run support.
 
     Args:
-        ha_areas (Dict[str, Any]): Home Assistant areas.
-        config (Dict[str, Any]): Configuration dictionary.
-        interactive_mode (bool): If True, require user confirmation before creation.
-
-    Returns:
-        List[Dict[str, Any]]: List of failed creations.
+        item: The entity or group object to delete.
+        item_type (str): Either 'entity' or 'group'.
+        dry_run (bool): If True, only print the intended action.
+        collector (List[Dict[str, Any]]): List to collect failed deletions.
     """
-    # Filter out ignored areas using normalized names (already normalized in config.py)
-
-    filtered_areas = {
-        k: v
-        for k, v in ha_areas.items()
-        if normalize_area_name(k) not in IGNORED_HA_AREAS
-    }
-    failed_creations: List[Dict[str, Any]] = []
-    endpoints = get_graphql_endpoint_entities()
-    area_to_alexa_ids = map_ha_entities_to_alexa_ids(filtered_areas, endpoints)
-
-    actions = [
-        f"{convert_ha_area_name(area_name)} (Appliance IDs: {area_to_alexa_ids.get(area_name, [])})"
-        for area_name in filtered_areas.keys()
-    ]
-    if not DRY_RUN and actions and interactive_mode:
-        if not batch_confirm_action(actions, "create"):
-            print("Creation cancelled by user.")
-            return []
-
-    def per_area(area_name: str, collector: List[Dict[str, Any]]):
-        alexa_ids = area_to_alexa_ids.get(area_name, [])
-        appliance_ids = [json.dumps({"applianceId": aid}) for aid in alexa_ids]
-        converted_name = convert_ha_area_name(area_name)
-        group = AlexaGroup(name=converted_name)
-        group.create_data["applianceIds"] = appliance_ids
-        if DRY_RUN:
-            from rich.console import Console
-
-            console = Console()
-            console.print(
-                f"[bold yellow][DRY RUN][/bold yellow] Would CREATE group: [cyan]{group.name}[/cyan] with appliance IDs: [green]{appliance_ids}[/green]"
-            )
-            return
-        create_success = group.create()
-        if not create_success:
-            collector.append({"name": group.name})
-
-    run_with_progress_bar(
-        list(filtered_areas.keys()),
-        "Creating Alexa groups from HA areas...",
-        per_area,
-        failed_creations,
-    )
-    if failed_creations:
-        logger.warning("\nFailed to create the following groups:")
-        for failure in failed_creations:
-            logger.warning(f"Name: '{failure['name']}'")
-    return failed_creations
+    if item_type == "entity":
+        url = f"https://{config['ALEXA_HOST']}/api/phoenix/appliance/{item.delete_id}"
+        name = item.display_name
+        item_id = item.id
+    else:
+        url = f"https://{config['ALEXA_HOST']}/api/phoenix/group/{item.id}"
+        name = item.name
+        item_id = item.id
+    if dry_run:
+        from rich.console import Console
+        console = Console()
+        console.print(
+            f"[bold yellow][DRY RUN][/bold yellow] Would DELETE {item_type}: [cyan]{name}[/cyan] (ID: {item_id}) at [green]{url}[/green]"
+        )
+        return
+    delete_success = item.delete()
+    if not delete_success:
+        if item_type == "entity":
+            collector.append({
+                "name": name,
+                "entity_id": item_id,
+                "device_id": item.delete_id,
+                "description": item.description,
+            })
+        else:
+            collector.append({"name": name, "group_id": item_id})
 
 
 def delete_entities(
@@ -195,37 +169,16 @@ def delete_entities(
     from alexa_manager.config import DRY_RUN
 
     failed_deletions: List[Dict[str, Any]] = []
-    # Prepare batch confirmation
-    actions = [
+    entity_descriptions = [
         f"{entity.display_name} (ID: {entity.id}, Device ID: {entity.delete_id})"
         for entity in entities.entities
     ]
-    if not DRY_RUN and actions and interactive_mode:
-        if not batch_confirm_action(actions, "delete"):
+    if not DRY_RUN and entity_descriptions and interactive_mode:
+        if not confirm_batch_action(entity_descriptions, "delete"):
             print("Deletion cancelled by user.")
             return []
-
     def per_entity(entity, collector):
-        url = f"https://{config['ALEXA_HOST']}/api/phoenix/appliance/{entity.delete_id}"
-        if DRY_RUN:
-            from rich.console import Console
-
-            console = Console()
-            console.print(
-                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{entity.display_name}[/cyan] (ID: {entity.id}) at [green]{url}[/green]"
-            )
-            return
-        delete_success = entity.delete()
-        if not delete_success:
-            collector.append(
-                {
-                    "name": entity.display_name,
-                    "entity_id": entity.id,
-                    "device_id": entity.delete_id,
-                    "description": entity.description,
-                }
-            )
-
+        process_deletion(entity, "entity", DRY_RUN, collector)
     run_with_progress_bar(
         list(entities.entities),
         "Deleting Alexa entities...",
@@ -257,27 +210,13 @@ def delete_groups(
     from alexa_manager.config import DRY_RUN
 
     failed_deletions: List[Dict[str, Any]] = []
-    # Prepare batch confirmation
-    actions = [f"{group.name} (ID: {group.id})" for group in groups.groups]
-    if not DRY_RUN and actions and interactive_mode:
-        if not batch_confirm_action(actions, "delete"):
+    group_descriptions = [f"{group.name} (ID: {group.id})" for group in groups.groups]
+    if not DRY_RUN and group_descriptions and interactive_mode:
+        if not confirm_batch_action(group_descriptions, "delete"):
             print("Deletion cancelled by user.")
             return []
-
     def per_group(group, collector):
-        url = f"https://{config['ALEXA_HOST']}/api/phoenix/group/{group.id}"
-        if DRY_RUN:
-            from rich.console import Console
-
-            console = Console()
-            console.print(
-                f"[bold yellow][DRY RUN][/bold yellow] Would DELETE group: [cyan]{group.name}[/cyan] (ID: {group.id}) at [green]{url}[/green]"
-            )
-            return
-        delete_success = group.delete()
-        if not delete_success:
-            collector.append({"name": group.name, "group_id": group.id})
-
+        process_deletion(group, "group", DRY_RUN, collector)
     run_with_progress_bar(
         list(groups.groups), "Deleting Alexa groups...", per_group, failed_deletions
     )
@@ -289,6 +228,56 @@ def delete_groups(
             )
     return failed_deletions
 
+
+def create_groups_from_areas(
+    ha_areas: Dict[str, Any], config: Dict[str, Any], interactive_mode: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    Create Alexa groups from Home Assistant areas, excluding those in the ignore list.
+
+    Args:
+        ha_areas (Dict[str, Any]): Home Assistant areas.
+        config (Dict[str, Any]): Configuration dictionary.
+        interactive_mode (bool): If True, require user confirmation before creation.
+
+    Returns:
+        List[Dict[str, Any]]: List of failed creations.
+    """
+    failed_creations = []
+    for area_name, ha_entity_ids in ha_areas.items():
+        if area_name in IGNORED_HA_AREAS:
+            logger.info(f"Skipping ignored area: {area_name}")
+            continue
+        group_name = convert_ha_area_name(area_name)
+        logger.info(f"Processing area '{area_name}' -> group '{group_name}'")
+
+        # Check if the group already exists
+        existing_groups = config.get("EXISTING_GROUPS", [])
+        existing_group = next(
+            (g for g in existing_groups if g["name"] == group_name), None
+        )
+        if existing_group:
+            logger.info(f"Group already exists: {group_name} (ID: {existing_group['id']})")
+            continue
+
+        # Create the group
+        logger.info(f"Creating group: {group_name}")
+        group = AlexaGroup(name=group_name)
+        group.appliance_ids = [
+            json.loads(format_appliance_id_for_api(ha_entity_id))["applianceId"]
+            for ha_entity_id in ha_entity_ids
+        ]
+        success = group.create()
+        if not success:
+            logger.error(f"Failed to create group: {group_name}")
+            failed_creations.append({"name": group_name})
+        else:
+            logger.info(f"Group created successfully: {group_name}")
+
+    return failed_creations
+
+# Expose create_groups_from_areas for testing and patching
+create_groups_from_areas = create_groups_from_areas
 
 # -----------------
 # Main Function

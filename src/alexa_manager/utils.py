@@ -8,7 +8,7 @@ This module contains helper functions such as rate limiting, progress bar, and t
 
 import functools
 import time
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Dict, Optional, Union
 from alexa_manager.config import SHOULD_SLEEP
 import logging
 
@@ -23,10 +23,10 @@ def rate_limited(func: Callable) -> Callable:
     Returns:
         Callable: The wrapped function with rate limiting applied.
     """
-    RATE_LIMIT_SLEEP = 0.2
+    RATE_LIMIT_SLEEP: float = 0.2
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         if SHOULD_SLEEP:
             time.sleep(RATE_LIMIT_SLEEP)
         return func(*args, **kwargs)
@@ -37,7 +37,7 @@ def rate_limited(func: Callable) -> Callable:
 def run_with_progress_bar(
     items: List[Any],
     description: str,
-    per_item_func: Callable,
+    per_item_func: Callable[[Any, List[Any]], None],
     fail_collector: List[Any],
 ) -> None:
     """
@@ -46,11 +46,15 @@ def run_with_progress_bar(
     Args:
         items (List[Any]): Items to process.
         description (str): Description for the progress bar.
-        per_item_func (Callable): Function to run for each item.
+        per_item_func (Callable[[Any, List[Any]], None]): Function to run for each item.
         fail_collector (List[Any]): Collector for failed items.
 
     Returns:
         None
+
+    Edge Cases:
+        - Handles KeyboardInterrupt gracefully, reporting partial progress.
+        - Falls back to basic output if 'rich' is not installed.
     """
     logger = logging.getLogger(__name__)
     try:
@@ -80,17 +84,21 @@ def run_with_progress_bar(
                 break
 
 
-def print_table(data: List[dict], columns: List[str], title: str) -> None:
+def print_table(data: List[Dict[str, Any]], columns: List[str], title: str) -> None:
     """
     Print a table of data in the console using rich if available.
 
     Args:
-        data (List[dict]): List of row data.
+        data (List[Dict[str, Any]]): List of row data.
         columns (List[str]): List of column names.
         title (str): Title for the table.
 
     Returns:
         None
+
+    Edge Cases:
+        - If 'rich' is not installed, prints a warning and does not format output.
+        - If data is empty, prints a yellow warning message.
     """
     try:
         from rich.console import Console
@@ -124,6 +132,9 @@ def convert_ha_area_name(area_name: str) -> str:
 
     Returns:
         str: The converted Area name in Title Case with spaces.
+
+    Raises:
+        TypeError: If area_name is not a string.
     """
     if not isinstance(area_name, str):
         raise TypeError("area_name must be a string")
@@ -145,30 +156,47 @@ def normalize_area_name(area_name: str) -> str:
     return area_name.replace("_", " ").strip().lower()
 
 
-def sanitize_list(input_list: list, key: str = None) -> list:
+def sanitize_list(input_list: List[Any], key: Optional[str] = None) -> List[str]:
     """
     Sanitize a list to ensure all items are hashable (strings).
     If a dict is found, extract the value for 'key' if provided, else str(dict).
+
+    Args:
+        input_list (List[Any]): List to sanitize.
+        key (Optional[str]): Key to extract from dicts, if present.
+
+    Returns:
+        List[str]: Sanitized list of strings.
+
+    Edge Cases:
+        - Dicts without the key are converted to their string representation.
+        - Non-dict items are converted to strings.
     """
-    sanitized = []
+    sanitized: List[str] = []
     for item in input_list:
         if isinstance(item, dict):
             val = item.get(key) if key and key in item else str(item)
-            sanitized.append(val)
+            sanitized.append(str(val))
             logging.warning(f"Sanitized dict in list: {item} -> {val}")
         else:
             sanitized.append(str(item))
     return sanitized
 
 
-def flatten_dict(d: dict) -> dict:
+def flatten_dict(d: Union[Dict[Any, Any], Any]) -> Union[Dict[Any, Any], Any]:
     """
     Recursively convert all nested dicts to strings for hashability.
     This ensures that any dict, even if deeply nested, is converted to a string.
+
+    Args:
+        d (Union[Dict[Any, Any], Any]): Dict or value to flatten.
+
+    Returns:
+        Union[Dict[Any, Any], Any]: Flattened dict or original value.
     """
     if not isinstance(d, dict):
         return d
-    flat = {}
+    flat: Dict[Any, Any] = {}
     for k, v in d.items():
         if isinstance(v, dict):
             flat[k] = str(flatten_dict(v))
@@ -186,11 +214,14 @@ def format_appliance_id_for_api(appliance_id: str) -> str:
     """
     Format the appliance ID for Alexa API requests.
 
-    Parameters:
-    appliance_id (str): The raw appliance ID string.
+    Args:
+        appliance_id (str): The raw appliance ID string.
 
     Returns:
-    str: A JSON string formatted for the Alexa API, e.g. '{"applianceId": "..."}'.
+        str: A JSON string formatted for the Alexa API, e.g. '{"applianceId": "..."}'.
+
+    Raises:
+        ValueError: If appliance_id is not a non-empty string.
     """
     import json
 
@@ -199,19 +230,29 @@ def format_appliance_id_for_api(appliance_id: str) -> str:
     return json.dumps({"applianceId": appliance_id})
 
 
-def _dry_run_action(action: str, target: str, url: str, extra: str = "") -> None:
+def dry_run_action(action: str, target: str, url: str, extra: str = "") -> None:
     """
     Helper to print dry-run actions for entities and groups.
+
     Args:
         action (str): The action being simulated (e.g., 'DELETE', 'CREATE').
         target (str): The name or ID of the target entity/group.
         url (str): The API endpoint URL.
         extra (str): Additional info to print (optional).
-    """
-    from rich.console import Console
 
-    console = Console()
-    msg = f"[bold yellow][DRY RUN][/bold yellow] Would {action} {target} at [green]{url}[/green]"
-    if extra:
-        msg += f" {extra}"
-    console.print(msg)
+    Returns:
+        None
+
+    Design Decisions:
+        - Uses 'rich' for colored console output if available.
+        - Public function for use in other modules.
+    """
+    try:
+        from rich.console import Console
+        console = Console()
+        msg = f"[bold yellow][DRY RUN][/bold yellow] Would {action} {target} at [green]{url}[/green]"
+        if extra:
+            msg += f" {extra}"
+        console.print(msg)
+    except ImportError:
+        print(f"[DRY RUN] Would {action} {target} at {url} {extra}")

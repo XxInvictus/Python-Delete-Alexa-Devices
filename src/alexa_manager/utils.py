@@ -27,7 +27,9 @@ def rate_limited(func: Callable) -> Callable:
     Returns:
         Callable: The wrapped function with rate limiting applied.
     """
-    RATE_LIMIT_SLEEP: float = 0.2  # Sleep duration in seconds between calls (magic number)
+    RATE_LIMIT_SLEEP: float = (
+        0.2  # Sleep duration in seconds between calls (magic number)
+    )
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:

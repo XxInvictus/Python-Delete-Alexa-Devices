@@ -292,28 +292,59 @@ def get_ha_areas() -> Dict[str, List[str]]:
         return {}
 
 
+def _normalize_alexa_appliance_id(appliance_id: str) -> str:
+    """
+    Normalize Alexa Appliance ID for comparison with Home Assistant Entity ID.
+    Removes SKILL identifier and replaces '#' with '.'.
+    Example:
+        'SKILL_...==_sensor#back_tap_timer_soil_temperature_1' -> 'sensor.back_tap_timer_soil_temperature_1'
+    """
+    if '==_' in appliance_id:
+        appliance_id = appliance_id.split('==_')[-1]
+    return appliance_id.replace('#', '.')
+
+
+def _normalize_ha_entity_id(ha_entity_id: str) -> str:
+    """
+    Normalize Home Assistant Entity ID for comparison.
+    Returns the entity ID in lowercase.
+    Example:
+        'sensor.Back_Tap_Timer_Soil_Temperature_1' -> 'sensor.back_tap_timer_soil_temperature_1'
+    """
+    return ha_entity_id.lower()
+
+
 def map_ha_entities_to_alexa_ids(
     ha_areas: Dict[str, List[str]], endpoints: AlexaEntities
 ) -> Dict[str, List[str]]:
     """
-    Map Home Assistant entity IDs to Alexa Application IDs (applianceId) for each area.
+    Map Home Assistant entity IDs to Alexa Appliance IDs for each area using normalized exact matching.
+
+    This function ensures that only HA entities with an exact normalized match to an Alexa Appliance ID are mapped.
+    The mapping is not based on list order, but on normalized string equality.
 
     Args:
-        ha_areas (Dict[str, List[str]]): Dictionary mapping area names to lists of HA entity IDs.
+        ha_areas (Dict[str, List[str]]): Mapping area names to lists of HA entity IDs.
         endpoints (AlexaEntities): AlexaEntities object containing endpoint entities.
 
     Returns:
-        Dict[str, List[str]]: Dictionary mapping area names to lists of Alexa applianceIds.
+        Dict[str, List[str]]: Mapping area names to lists of Alexa applianceIds (only exact matches).
     """
-    ha_to_alexa = {e.ha_entity_id: e.appliance_id for e in endpoints.entities}
+    # Build a lookup of normalized Alexa Appliance IDs to original appliance IDs
+    normalized_alexa = {
+        _normalize_alexa_appliance_id(e.appliance_id): e.appliance_id
+        for e in endpoints.entities
+        if e.appliance_id
+    }
     area_to_alexa_ids: Dict[str, List[str]] = {}
     for area, ha_ids in ha_areas.items():
-        alexa_ids = [
-            ha_to_alexa[ha_id.lower()]
-            for ha_id in ha_ids
-            if ha_id.lower() in ha_to_alexa
-        ]
-        area_to_alexa_ids[area] = alexa_ids
+        matched_alexa_ids = []
+        for ha_id in ha_ids:
+            norm_ha_id = _normalize_ha_entity_id(ha_id)
+            # Only add Alexa ID if there is an exact normalized match
+            if norm_ha_id in normalized_alexa:
+                matched_alexa_ids.append(normalized_alexa[norm_ha_id])
+        area_to_alexa_ids[area] = matched_alexa_ids
     return area_to_alexa_ids
 
 

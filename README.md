@@ -1,8 +1,8 @@
 # Alexa Manager
-[![CodeQL Advanced](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/codeql.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/codeql.yml) | 
-[![Dependency review](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/dependency-review.yml) | 
-[![Pytest](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/uv_pytest.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/uv_pytest.yml) | 
-[![Ruff](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/ruff.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/ruff.yml)
+[![CodeQL Advanced](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/codeql.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/codeql.yml)&nbsp;&nbsp;
+[![Dependency review](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/dependency-review.yml)&nbsp;&nbsp;
+[![Pytest](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/uv_pytest.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/uv_pytest.yml)&nbsp;&nbsp;
+[![Ruff](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/ruff.yml/badge.svg)](https://github.com/XxInvictus/Python-Delete-Alexa-Devices/actions/workflows/ruff.yml)</p>
 
 ## Index
 - [Project Structure](#project-structure)

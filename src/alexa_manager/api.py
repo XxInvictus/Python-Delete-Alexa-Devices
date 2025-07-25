@@ -341,7 +341,7 @@ def put_alexa_group(
     group_data: Dict[str, Any],
     updated_fields: Dict[str, Any],
     url_base: str = URLS["GET_GROUPS"],
-    headers: Dict[str, str] = ALEXA_HEADERS,
+    headers: Dict[str, str] = None,
 ) -> bool:
     """
     Send a PUT request to update a single Alexa group.
@@ -360,6 +360,9 @@ def put_alexa_group(
         Interactive confirmation should be handled externally (e.g., in main.py).
     """
     from alexa_manager.models import AlexaExpandedGroup
+
+    if headers is None:
+        headers = ALEXA_HEADERS
 
     new_data = group_data.copy()
     new_data.update(updated_fields)
@@ -398,7 +401,7 @@ def update_alexa_group(
     updated_fields: Dict[str, Any],
     groups: List[Dict[str, Any]] = None,
     url_base: str = URLS["GET_GROUPS"],
-    headers: Dict[str, str] = ALEXA_HEADERS,
+    headers: Dict[str, str] = None,
 ) -> bool:
     """
     Update a single Alexa group by ID.
@@ -413,6 +416,9 @@ def update_alexa_group(
     Returns:
         bool: True if update was successful, False otherwise.
     """
+    if headers is None:
+        headers = ALEXA_HEADERS
+
     if not groups:
         raise ValueError("Groups list must be provided.")
     group_data = find_group_by_id(groups, group_id)
@@ -423,7 +429,7 @@ def update_alexa_groups_batch(
     updates: List[Dict[str, Any]],
     groups: List[Dict[str, Any]],
     url_base: str = URLS["GET_GROUPS"],
-    headers: Dict[str, str] = ALEXA_HEADERS,
+    headers: Dict[str, str] = None,
 ) -> Dict[str, bool]:
     """
     Batch update multiple Alexa groups.
@@ -437,6 +443,9 @@ def update_alexa_groups_batch(
     Returns:
         Dict[str, bool]: Mapping of group_id to update success (True/False).
     """
+    if headers is None:
+        headers = ALEXA_HEADERS
+
     results = {}
     for update in updates:
         group_id = update.get("group_id")
@@ -470,7 +479,7 @@ def find_missing_ha_groups(
 
 
 def create_alexa_group_for_ha_area(
-    area_name: str, appliance_ids: List[str], url_base: str, headers: Dict[str, str]
+    area_name: str, appliance_ids: List[str], url_base: str, headers: Dict[str, str] = None
 ) -> bool:
     """
     Create an Alexa group for a given HA area with specified appliance IDs.
@@ -487,6 +496,9 @@ def create_alexa_group_for_ha_area(
     """
     from alexa_manager.models import AlexaExpandedGroup
     from alexa_manager.config import DRY_RUN
+
+    if headers is None:
+        headers = ALEXA_HEADERS
 
     new_group = AlexaExpandedGroup(
         name=area_name,
@@ -522,7 +534,7 @@ def sync_alexa_group_entities(
     mode: str,
     alexa_groups: List[Dict[str, Any]],
     url_base: str,
-    headers: Dict[str, str],
+    headers: Dict[str, str] = None,
 ) -> str:
     """
     Sync entities in an Alexa group to match desired appliance IDs.
@@ -538,6 +550,9 @@ def sync_alexa_group_entities(
     Returns:
         str: "updated", "skipped", or "error".
     """
+    if headers is None:
+        headers = ALEXA_HEADERS
+
     current_ids = set(group.get("applianceIds", []))
     desired_ids = set(desired_appliance_ids)
     if mode == "update_only":
@@ -571,7 +586,7 @@ def sync_ha_alexa_groups(
     sync_groups: bool = True,
     sync_entities: bool = True,
     url_base: str = URLS["GET_GROUPS"],
-    headers: Dict[str, str] = ALEXA_HEADERS,
+    headers: Dict[str, str] = None,
 ) -> Dict[str, Any]:
     """
     Orchestrate syncing of HA areas/groups with Alexa groups.
@@ -589,6 +604,9 @@ def sync_ha_alexa_groups(
     Returns:
         Dict[str, Any]: Summary of actions taken (created, updated, skipped, errors).
     """
+    if headers is None:
+        headers = ALEXA_HEADERS
+
     results = {"created": [], "updated": [], "skipped": [], "errors": []}
     # Find missing groups and create them
     if sync_groups:

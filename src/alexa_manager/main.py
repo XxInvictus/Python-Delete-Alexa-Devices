@@ -468,20 +468,20 @@ def handle_get_actions(args: argparse.Namespace) -> None:
                 # Build a lookup of normalized Alexa Appliance IDs for this area
                 norm_alexa_ids = set()
                 for aid in alexa_ids:
-                    if '==_' in aid:
-                        aid_norm = aid.split('==_')[-1].replace('#', '.').lower()
+                    if "==_" in aid:
+                        aid_norm = aid.split("==_")[-1].replace("#", ".").lower()
                     else:
-                        aid_norm = aid.replace('#', '.').lower()
+                        aid_norm = aid.replace("#", ".").lower()
                     norm_alexa_ids.add(aid_norm)
                 for ha_id in ha_ids:
                     ha_id_norm = ha_id.lower()
                     # Find the matching Alexa ID
                     matched_alexa_id = None
                     for aid in alexa_ids:
-                        if '==_' in aid:
-                            aid_norm = aid.split('==_')[-1].replace('#', '.').lower()
+                        if "==_" in aid:
+                            aid_norm = aid.split("==_")[-1].replace("#", ".").lower()
                         else:
-                            aid_norm = aid.replace('#', '.').lower()
+                            aid_norm = aid.replace("#", ".").lower()
                         if ha_id_norm == aid_norm:
                             matched_alexa_id = aid
                             break

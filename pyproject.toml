@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 classifiers = ["Private :: Do Not Upload"]
 dependencies = [
+    "pre-commit>=4.2.0",
     "pydantic>=2.11.7",
     "pytest>=8.4.1",
     "requests>=2.31.0",

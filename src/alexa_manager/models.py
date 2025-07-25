@@ -63,6 +63,34 @@ class AlexaEntities:
             raise TypeError("entity must be an AlexaEntity instance.")
         self.entities.append(entity)
 
+    def get_filtered_entities(self) -> List["AlexaEntity"]:
+        """
+        Get entities whose description contains the filter_text.
+
+        Returns:
+            List[AlexaEntity]: Filtered list of AlexaEntity instances.
+        """
+        if not self.filter_text:
+            return self.entities
+        return [e for e in self.entities if self.filter_text in e.description]
+
+    def delete_filtered_entities(self) -> int:
+        """
+        Delete only entities whose description contains filter_text.
+
+        Returns:
+            int: Number of entities deleted.
+        """
+        filtered = self.get_filtered_entities()
+        deleted_count = 0
+        for entity in filtered:
+            try:
+                if entity.delete():
+                    deleted_count += 1
+            except Exception as exc:
+                logger.error(f"Failed to delete entity {entity.id}: {exc}")
+        return deleted_count
+
     def __repr__(self) -> str:
         """
         Return a string representation of the AlexaEntities object.
@@ -183,9 +211,9 @@ class AlexaEntity:
         console.print(
             f"[bold yellow][DRY RUN][/bold yellow] Would DELETE entity: [cyan]{self.display_name}[/cyan] (ID: {self.id}) at [green]{url}[/green]"
         )
-        # Simulate a successful delete response with status 204
-        response_status = 204
-        if response_status == 204:
+        # Simulate a successful delete response with status 200
+        response_status = 200
+        if response_status == 200:
             # Simulate the check for deletion (404)
             check_status = 404
             if check_status == 404:
@@ -223,7 +251,7 @@ class AlexaEntity:
             logger.debug(f"Delete response text: {response.text}")
         response.raise_for_status()
         # Only treat 204 as success for real API calls
-        if response.status_code == 204:
+        if response.status_code == 200:
             return self._check_deleted()
         else:
             raise requests.HTTPError(

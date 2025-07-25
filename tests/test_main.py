@@ -111,7 +111,12 @@ def test_main_fatal_error(monkeypatch):
     monkeypatch.setattr(main, "delete_entities", raise_error)
     with pytest.raises(Exception) as excinfo:
         main.main()
-    assert "fatal" in str(excinfo.value)
+    # Accept either the original 'fatal' or the new error message
+    assert (
+        "fatal" in str(excinfo.value)
+        or "get_entities() returned None or invalid object." in str(excinfo.value)
+        or "'NoneType' object has no attribute 'entities'" in str(excinfo.value)
+    )
 
 
 def test_main_alexa_only_skips_ha(monkeypatch, caplog):

@@ -103,36 +103,53 @@ uv run alexa_manager --help
 
 ### CLI Arguments
 
-| Argument                | Description                                                                                                                                                                                               |
-|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--delete-entities`    | Delete Alexa skill entities that match the configured filter.                                                                                                                                             |
-| `--delete-endpoints`   | Delete Alexa GraphQL endpoints (devices/endpoints discovered via GraphQL).                                                                                                                                |
-| `--delete-groups`      | Delete all Alexa groups.                                                                                                                                                                                  |
-| `--create-groups`      | Create Alexa groups for each Home Assistant area.                                                                                                                                                         |
-| `--get-entities`       | Output Alexa skill entities as a table.                                                                                                                                                                   |
-| `--get-endpoints`      | Output Alexa GraphQL endpoints as a table.                                                                                                                                                                |
-| `--get-groups`         | Output Alexa groups as a table.                                                                                                                                                                           |
-| `--get-ha-areas`       | Output Home Assistant areas as a table.                                                                                                                                                                   |
-| `--get-ha-mapping`     | Output mapping of HA entity IDs to Alexa Application IDs for each area.                                                                                                                                   |
-| `--alexa-only`         | Run in Alexa Only mode (skip all Home Assistant dependent steps).                                                                                                                                         |
-| `--dry-run`           | Simulate all destructive actions. Only GET requests are performed; DELETE, PUT, POST actions are displayed (using Rich) and not executed. Useful for previewing what would happen without making changes. |
-| `--interactive`        | Enable interactive mode for batch actions, requiring user confirmation.                                                                                                                                   |
-| `--test-alexa-groups` | Create a test Alexa group with a random ApplianceId, verify creation, update with another random ApplianceId, verify update, and delete it.                                                               |
-| `--help`               | Show help message and exit.                                                                                                                                                                               |
+| Argument                | Type      | Description                                                                                                                                                                                               |
+|-------------------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--delete-entities`     | _Action_    | Delete Alexa skill entities that match the configured filter.                                                                                                                                             |
+| `--delete-endpoints`    | _Action_    | Delete Alexa GraphQL endpoints (devices/endpoints discovered via GraphQL).                                                                                                                                |
+| `--delete-groups`       | _Action_    | Delete all Alexa groups.                                                                                                                                                                                  |
+| `--create-groups`       | _Action_    | Create Alexa groups for each Home Assistant area.                                                                                                                                                         |
+| `--get-entities`        | _Action_    | Output Alexa skill entities as a table.                                                                                                                                                                   |
+| `--get-endpoints`       | _Action_    | Output Alexa GraphQL endpoints as a table.                                                                                                                                                                |
+| `--get-groups`          | _Action_    | Output Alexa groups as a table.                                                                                                                                                                           |
+| `--get-ha-areas`        | _Action_    | Output Home Assistant areas as a table.                                                                                                                                                                   |
+| `--get-ha-mapping`      | _Action_    | Output mapping of HA entity IDs to Alexa Application IDs for each area.                                                                                                                                   |
+| `--alexa-only`          | _Modifier_  | Run in Alexa Only mode (skip all Home Assistant dependent steps).                                                                                                                                         |
+| `--interactive`         | _Modifier_  | Enable interactive mode for batch actions, requiring user confirmation.                                                                                                                                   |
+| `--filter-entities`     | _Modifier_  | Filter Alexa entities/endpoints by description before displaying or deleting. Only entities/endpoints whose description contains the configured filter text will be affected.                              |
+| `--dry-run`             | _Validator_ | Simulate all destructive actions. Only GET requests are performed; DELETE, PUT, POST actions are displayed (using Rich) and not executed. Useful for previewing what would happen without making changes. |
+| `--test-alexa-groups`   | _Validator_ | Test Alexa group creation, retrieval, and deletion with a randomly selected ApplianceId.                                                                                                                  |
+| `--help`                | _Option_    | Show help message and exit.                                                                                                                                                                               |
 
 ---
 
 **Examples:**
+Core Examples:
 ```sh
+uv run alexa_manager  # (equivalent to: --delete-entities --delete-endpoints --delete-groups --create-groups)
 uv run alexa_manager --get-entities
 uv run alexa_manager --delete-entities --delete-groups
 uv run alexa_manager --create-groups
 uv run alexa_manager --get-ha-areas
 uv run alexa_manager --alexa-only
-uv run alexa_manager --delete-entities --dry-run
-uv run alexa_manager --create-groups --dry-run
 uv run alexa_manager --get-ha-mapping
 uv run alexa_manager --interactive --delete-entities
+```
+
+Example usage with filter:
+```sh
+uv run alexa_manager --get-entities --filter-entities
+uv run alexa_manager --delete-entities --filter-entities
+uv run alexa_manager --get-endpoints --filter-entities
+uv run alexa_manager --delete-endpoints --filter-entities
+```
+
+Examples for testing/validation:
+```sh
+uv run alexa_manager --dry-run
+uv run alexa_manager --delete-entities --dry-run
+uv run alexa_manager --create-groups --dry-run
+uv run alexa_manager --delete-entities --filter-entities --dry-run
 uv run alexa_manager --test-alexa-groups
 ```
 

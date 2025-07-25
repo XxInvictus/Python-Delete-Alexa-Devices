@@ -193,7 +193,7 @@ def delete_entities(
         logger.warning("\nFailed to delete the following entities:")
         for failure in failed_deletions:
             logger.warning(
-                f"Name: '{failure['name']}', Entity ID: '{failure['entity_id']}', Device ID: '{failure['device_id']}', Description: '{failure['description']}'"
+                f"Name: '{failure.name}', Entity ID: '{failure.entity_id}', Device ID: '{failure.device_id}', Description: '{failure.description}'"
             )
     return failed_deletions
 
@@ -228,9 +228,7 @@ def delete_groups(
     if failed_deletions:
         logger.warning("\nFailed to delete the following groups:")
         for failure in failed_deletions:
-            logger.warning(
-                f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'"
-            )
+            logger.warning(f"Name: '{failure.name}', Group ID: '{failure.group_id}'")
     return failed_deletions
 
 
@@ -304,14 +302,14 @@ def parse_arguments() -> argparse.Namespace:
         description="Manage Alexa skill entities, endpoints, and groups.",
         epilog="""
 Examples:
-  python main.py --delete-entities --delete-groups
-  python main.py --create-groups
-  python main.py --get-entities
-  python main.py --get-endpoints
-  python main.py --get-groups
-  python main.py --get-ha-areas
-  python main.py --get-ha-mapping
-  python main.py  # (runs all actions)
+  uv run alexa_manager --delete-entities --delete-groups
+  uv run alexa_manager --create-groups
+  uv run alexa_manager --get-entities
+  uv run alexa_manager --get-endpoints
+  uv run alexa_manager --get-groups
+  uv run alexa_manager --get-ha-areas
+  uv run alexa_manager --get-ha-mapping
+  uv run alexa_manager  # (runs all actions)
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -376,6 +374,11 @@ Examples:
         action="store_true",
         help="Test Alexa group creation, retrieval, and deletion with a randomly selected ApplianceId.",
     )
+    parser.add_argument(
+        "--filter-entities",
+        action="store_true",
+        help="Filter Alexa entities/endpoints by description before displaying or deleting. Only entities/endpoints whose description contains the configured filter text will be affected.",
+    )
     args = parser.parse_args()
     # Validate mutually exclusive arguments if needed
     return args
@@ -413,34 +416,66 @@ def handle_get_actions(args: argparse.Namespace) -> None:
         return
     if args.get_entities:
         entities = get_entities()
-        print_table(
-            [
-                {
-                    ID: e.id,
-                    DISPLAY_NAME: e.display_name,
-                    HA_ENTITY_ID: e.ha_entity_id,
-                    DESCRIPTION: e.description,
-                }
-                for e in entities.entities
-            ],
-            [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
-            "Alexa Skill Entities",
-        )
+        if args.filter_entities:
+            filtered_entities = entities.get_filtered_entities()
+            print_table(
+                [
+                    {
+                        ID: e.id,
+                        DISPLAY_NAME: e.display_name,
+                        HA_ENTITY_ID: e.ha_entity_id,
+                        DESCRIPTION: e.description,
+                    }
+                    for e in filtered_entities
+                ],
+                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
+                "Filtered Alexa Skill Entities",
+            )
+        else:
+            print_table(
+                [
+                    {
+                        ID: e.id,
+                        DISPLAY_NAME: e.display_name,
+                        HA_ENTITY_ID: e.ha_entity_id,
+                        DESCRIPTION: e.description,
+                    }
+                    for e in entities.entities
+                ],
+                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
+                "Alexa Skill Entities",
+            )
     if args.get_endpoints:
         endpoints = get_graphql_endpoint_entities()
-        print_table(
-            [
-                {
-                    ID: e.id,
-                    DISPLAY_NAME: e.display_name,
-                    HA_ENTITY_ID: e.ha_entity_id,
-                    DESCRIPTION: e.description,
-                }
-                for e in endpoints.entities
-            ],
-            [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
-            "Alexa GraphQL Endpoints",
-        )
+        if args.filter_entities:
+            filtered_endpoints = endpoints.get_filtered_entities()
+            print_table(
+                [
+                    {
+                        ID: e.id,
+                        DISPLAY_NAME: e.display_name,
+                        HA_ENTITY_ID: e.ha_entity_id,
+                        DESCRIPTION: e.description,
+                    }
+                    for e in filtered_endpoints
+                ],
+                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
+                "Filtered Alexa GraphQL Endpoints",
+            )
+        else:
+            print_table(
+                [
+                    {
+                        ID: e.id,
+                        DISPLAY_NAME: e.display_name,
+                        HA_ENTITY_ID: e.ha_entity_id,
+                        DESCRIPTION: e.description,
+                    }
+                    for e in endpoints.entities
+                ],
+                [ID, DISPLAY_NAME, HA_ENTITY_ID, DESCRIPTION],
+                "Alexa GraphQL Endpoints",
+            )
     if args.get_groups:
         groups = get_groups()
         print_table(
@@ -522,11 +557,42 @@ def dispatch_actions(args: argparse.Namespace) -> Dict[str, List[Dict[str, Any]]
         or args.create_groups
     )
     if args.delete_entities or do_all:
-        failed_entity_deletions = delete_entities(get_entities(), args.interactive)
+        entities_obj = get_entities()
+        if entities_obj is None or not hasattr(entities_obj, "entities"):
+            logger.error("get_entities() returned None or invalid object.")
+            failed_entity_deletions = []
+        else:
+            if args.filter_entities:
+                # Create a new AlexaEntities object for filtered entities
+                filtered_entities_obj = AlexaEntities()
+                for e in entities_obj.get_filtered_entities():
+                    filtered_entities_obj.add_entity(e)
+                failed_entity_deletions = delete_entities(
+                    filtered_entities_obj, args.interactive
+                )
+            else:
+                failed_entity_deletions = delete_entities(
+                    entities_obj, args.interactive
+                )
     if args.delete_endpoints or do_all:
-        failed_endpoint_deletions = delete_entities(
-            get_graphql_endpoint_entities(), args.interactive
-        )
+        endpoints_obj = get_graphql_endpoint_entities()
+        if endpoints_obj is None or not hasattr(endpoints_obj, "entities"):
+            logger.error(
+                "get_graphql_endpoint_entities() returned None or invalid object."
+            )
+            failed_endpoint_deletions = []
+        else:
+            if args.filter_entities:
+                filtered_endpoints_obj = AlexaEntities()
+                for e in endpoints_obj.get_filtered_entities():
+                    filtered_endpoints_obj.add_entity(e)
+                failed_endpoint_deletions = delete_entities(
+                    filtered_endpoints_obj, args.interactive
+                )
+            else:
+                failed_endpoint_deletions = delete_entities(
+                    endpoints_obj, args.interactive
+                )
     if args.delete_groups or do_all:
         failed_group_deletions = delete_groups(get_groups(), args.interactive)
     if args.create_groups or do_all:

@@ -107,6 +107,9 @@ class AlexaManagerConfig(BaseModel):
     DESCRIPTION_FILTER_TEXT: str = (
         ""  # Added for compatibility with tests and AlexaEntities
     )
+    # New config fields for Alexa Media Player integration
+    ALEXA_DEVICE_ID: str = ""
+    ALEXA_ENTITY_ID: str = ""
 
 
 def load_config(
@@ -195,6 +198,12 @@ ROUTINE_VERSION: str = config.get("ROUTINE_VERSION", "1.0")
 # Home Assistant API connection details
 HA_HOST: str = config.get("HA_HOST", "localhost")
 HA_API_KEY: str = config.get("HA_API_KEY", "")
+# Alexa Media Player integration config (loaded from config using pydantic)
+ALEXA_DEVICE_ID: str = config.get("ALEXA_DEVICE_ID", "")
+ALEXA_ENTITY_ID: str = config.get("ALEXA_ENTITY_ID", "")
+
+# Timeout (in seconds) for waiting for Alexa device discovery to complete
+ALEXA_DEVICE_DISCOVERY_TIMEOUT: int = 120  # 2 minutes by default
 
 # Debug file paths for saving API responses
 DEBUG_FILES: Dict[str, str] = {
@@ -214,6 +223,8 @@ URLS: Dict[str, str] = {
     "DELETE_GROUP": None,  # Will be set below
     "DELETE_ENTITIES": f"https://{ALEXA_HOST}/api/phoenix/appliance/{DELETE_SKILL}%3D%3D_",
     "HA_TEMPLATE": f"https://{HA_HOST}/api/template",
+    # Add Alexa Media Player command endpoint for HA
+    "HA_ALEXA_COMMAND": f"https://{HA_HOST}/api/services/media_player/play_media",
 }
 # Set CREATE_GROUP and DELETE_GROUP using GET_GROUPS as base
 URLS["CREATE_GROUP"] = URLS["GET_GROUPS"]  # POST to this URL to create a group

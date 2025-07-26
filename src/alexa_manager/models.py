@@ -228,7 +228,7 @@ class AlexaEntity:
             )
 
     @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
     )
     def _delete_with_retry(self) -> bool:
         """
@@ -261,7 +261,7 @@ class AlexaEntity:
     @retry(
         retry=retry_if_exception_type(requests.exceptions.HTTPError),
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
     )
     def _check_deleted(self) -> bool:
         """
@@ -421,7 +421,7 @@ class AlexaGroup:
         return f"AlexaGroup(id={self.id}, name={self.name})"
 
     @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
     )
     def create(self) -> bool:
         """
@@ -493,7 +493,7 @@ class AlexaGroup:
         return self._delete_with_retry(url)
 
     @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10)
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
     )
     def _delete_with_retry(self, url: str) -> bool:
         """

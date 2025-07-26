@@ -35,9 +35,13 @@ DESCRIPTION_FILTER_TEXT = "Home Assistant"
 HA_HOST = "homeassistant.local:8123"
 # Home Assistant API key. Required only for HA integration features.
 HA_API_KEY = ""
+# Home Assistant device ID for the Alexa device. Used to send Alexa commands.
+ALEXA_DEVICE_ID = ""
+# Home Assistant entity ID for the Alexa device. Used to send commands.
+ALEXA_ENTITY_ID = ""
 # List of Home Assistant areas to ignore when syncing to Alexa groups.
 # Example: ["Garage", "Basement"]
-IGNORED_HA_AREAS = ["Do Not Monitor"]
+IGNORED_HA_AREAS = []
 
 # -----------------------------
 # Advanced/Debug Options

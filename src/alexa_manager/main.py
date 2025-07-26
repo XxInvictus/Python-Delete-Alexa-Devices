@@ -41,6 +41,7 @@ from alexa_manager.api import (
     get_groups,
     get_ha_areas,
     map_ha_entities_to_alexa_ids,
+    alexa_discover_devices,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,7 @@ def process_deletion(
         return
     delete_success = item.delete()
     if not delete_success:
+        logger.debug(f"Failed to delete {item_type} '{name}' (ID: {item_id}) at {url}")
         if item_type == "entity":
             collector.append(
                 {
@@ -192,6 +194,7 @@ def delete_entities(
     if failed_deletions:
         logger.warning("\nFailed to delete the following entities:")
         for failure in failed_deletions:
+            logger.debug(f"failure: {failure}")
             logger.warning(
                 f"Name: '{failure.name}', Entity ID: '{failure.entity_id}', Device ID: '{failure.device_id}', Description: '{failure.description}'"
             )
@@ -378,6 +381,11 @@ Examples:
         "--filter-entities",
         action="store_true",
         help="Filter Alexa entities/endpoints by description before displaying or deleting. Only entities/endpoints whose description contains the configured filter text will be affected.",
+    )
+    parser.add_argument(
+        "--alexa-discover-devices",
+        action="store_true",
+        help="Trigger Alexa to discover new devices via Home Assistant Alexa Media Player integration.",
     )
     args = parser.parse_args()
     # Validate mutually exclusive arguments if needed
@@ -658,6 +666,14 @@ def main() -> None:
     """
     args = parse_arguments()
     set_global_flags(args)
+    if args.alexa_discover_devices:
+        # Perform Alexa device discovery and print result
+        used_id = alexa_discover_devices()
+        if used_id:
+            print(f"Alexa device discovery triggered successfully on: {used_id}")
+        else:
+            print("Failed to trigger Alexa device discovery.")
+        return
     if args.test_alexa_groups:
         test_alexa_groups()
         return

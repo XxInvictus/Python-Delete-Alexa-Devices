@@ -7,13 +7,17 @@ This module contains functions for fetching and processing data from Alexa and H
 """
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import requests
 from alexa_manager.config import (
     DEBUG,
     DEBUG_FILES,
     URLS,
     ALEXA_HEADERS,
+    HA_HEADERS,
+    ALEXA_DEVICE_ID,
+    ALEXA_ENTITY_ID,
+    ALEXA_DEVICE_DISCOVERY_TIMEOUT,
 )
 from alexa_manager.models import (
     AlexaEntities,
@@ -22,6 +26,15 @@ from alexa_manager.models import (
     AlexaExpandedGroup,
 )
 from alexa_manager.utils import rate_limited
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+    stop_after_delay,
+    wait_fixed,
+    RetryError,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -253,6 +266,41 @@ def get_groups(url: str = URLS["GET_GROUPS"]) -> AlexaGroups:
 
 
 @rate_limited
+@retry(
+    retry=retry_if_exception_type((requests.RequestException,)),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+)
+def call_ha_template_api(template: dict) -> Optional[str]:
+    """
+    Call the Home Assistant template API with the provided template dict.
+
+    Args:
+        template (dict): The template payload to send.
+
+    Returns:
+        Optional[str]: The response text if successful, None otherwise.
+    """
+    try:
+        response = requests.post(
+            URLS["HA_TEMPLATE"],
+            headers=HA_HEADERS,
+            timeout=15,
+            data=json.dumps(template),
+        )
+        if response.status_code == 200:
+            return response.text
+        else:
+            logger.error(
+                f"Failed to call HA template API: {response.status_code} - {response.text}"
+            )
+            return None
+    except Exception as e:
+        logger.error(f"Error calling HA template API: {e}")
+        return None
+
+
+@rate_limited
 def get_ha_areas() -> Dict[str, List[str]]:
     """
     Fetch Home Assistant areas and their child entity IDs.
@@ -260,35 +308,20 @@ def get_ha_areas() -> Dict[str, List[str]]:
     Returns:
         Dict[str, List[str]]: Dictionary mapping area names to lists of entity IDs.
     """
-    # Import HA_HEADERS from config only when needed to avoid issues in Alexa Only mode
-    from alexa_manager.config import HA_HEADERS
-
     areas_template = {
         "template": "{%- for area in areas() -%} {{area|to_json}}:{{area_entities(area)|to_json}}, {%- endfor -%}"
     }
-    try:
-        response = requests.post(
-            URLS["HA_TEMPLATE"],
-            headers=HA_HEADERS,
-            timeout=15,
-            data=json.dumps(areas_template),
-        )
-        if response.status_code == 200:
-            try:
-                area_dict = _safe_json_loads(response.text)
-                return area_dict
-            except Exception as e:
-                logger.error(
-                    f"Error: Could not parse Home Assistant API response as JSON: {e}"
-                )
-                return {}
-        else:
+    response_text = call_ha_template_api(areas_template)
+    if response_text is not None:
+        try:
+            area_dict = _safe_json_loads(response_text)
+            return area_dict
+        except Exception as e:
             logger.error(
-                f"Failed to retrieve areas: {response.status_code} - {response.text}"
+                f"Error: Could not parse Home Assistant API response as JSON: {e}"
             )
             return {}
-    except Exception as e:
-        logger.error(f"Error fetching Home Assistant areas: {e}")
+    else:
         return {}
 
 
@@ -670,3 +703,150 @@ def sync_ha_alexa_groups(
                 elif action == "error":
                     results["errors"].append((area_name, "Failed to sync entities"))
     return results
+
+
+@retry(
+    retry=retry_if_exception_type(requests.exceptions.HTTPError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+)
+def send_alexa_command_via_ha_service(alexa_command: str) -> Optional[str]:
+    """
+    Send an Alexa command via Home Assistant Service using Alexa Media Player integration.
+    Retries on transient HTTP errors using tenacity.
+
+    Parameters:
+        alexa_command (str): The Alexa command to send (e.g., 'announce', 'routine', 'discover devices').
+
+    Returns:
+        Optional[str]: The device_id or entity_id used if the command was sent successfully, None otherwise.
+    """
+    url = URLS["HA_ALEXA_COMMAND"]
+    payload = {
+        "media_content_id": alexa_command,
+        "media_content_type": "custom",
+    }
+    used_id = None
+    if ALEXA_DEVICE_ID:
+        payload["device_id"] = ALEXA_DEVICE_ID
+        used_id = ALEXA_DEVICE_ID
+    elif ALEXA_ENTITY_ID:
+        payload["entity_id"] = ALEXA_ENTITY_ID
+        used_id = ALEXA_ENTITY_ID
+    else:
+        # Attempt to fetch the last used Alexa entity_id if not provided
+        last_used_entity_id = fetch_last_used_alexa()
+        if last_used_entity_id:
+            payload["entity_id"] = last_used_entity_id
+            used_id = last_used_entity_id
+            logger.info(f"Using last used Alexa entity_id: {last_used_entity_id}")
+        else:
+            logger.error(
+                "No Alexa device_id or entity_id specified for HA service call, and could not fetch last used Alexa entity_id."
+            )
+            raise ValueError(
+                "No Alexa device_id or entity_id specified for HA service call, and could not fetch last used Alexa entity_id."
+            )
+    response = requests.post(url, headers=HA_HEADERS, json=payload, timeout=15)
+    if response.status_code == 200:
+        return used_id
+    else:
+        logger.error(
+            f"Failed to send Alexa command via HA service: {response.status_code} {response.text}"
+        )
+        raise requests.HTTPError(
+            f"Alexa command failed: {response.status_code} {response.text}"
+        )
+
+
+def alexa_discover_devices() -> Optional[str]:
+    """
+    Trigger Alexa to discover new devices via Home Assistant Alexa Media Player integration.
+    Uses retry logic for reliability.
+
+    Returns:
+        Optional[str]: The device_id or entity_id used if successful, None otherwise.
+    """
+    return send_alexa_command_via_ha_service("discover devices")
+
+
+def fetch_last_used_alexa() -> str:
+    """
+    Fetch the entity_id of the last used Alexa device via Home Assistant template API.
+
+    Returns:
+        str: The entity_id of the last called Alexa media player, or an empty string if not found.
+    """
+    last_used_template = {
+        "template": "{{ expand(integration_entities('alexa_media') | select('search', 'media_player')) | selectattr('attributes.last_called', 'eq', True) | map(attribute='entity_id') | first }}"
+    }
+    response_text = call_ha_template_api(last_used_template)
+    if response_text is not None:
+        entity_id = response_text.strip().strip('"')
+        return entity_id if entity_id else ""
+    return ""
+
+
+def wait_for_device_discovery(
+    timeout: Optional[int] = None, poll_interval: float = 5.0
+) -> bool:
+    """
+    Wait for Alexa device discovery to complete by monitoring the number of Alexa entities.
+    Triggers device discovery and polls until the entity count increases or timeout is reached.
+
+    Args:
+        timeout (Optional[int]): Timeout in seconds. Defaults to config value.
+        poll_interval (float): How often to poll for new entities (seconds).
+
+    Returns:
+        bool: True if new devices were discovered, False if timed out.
+    """
+    if timeout is None:
+        timeout = ALEXA_DEVICE_DISCOVERY_TIMEOUT
+    logger = logging.getLogger(__name__)
+    try:
+        initial_entities = get_entities()
+        initial_count = (
+            len(initial_entities) if hasattr(initial_entities, "__len__") else 0
+        )
+    except (requests.RequestException, ValueError, Exception) as e:
+        logger.error(f"Failed to fetch initial Alexa entities: {e}")
+        return False
+    logger.info(f"Initial Alexa entity count: {initial_count}")
+    try:
+        alexa_discover_devices()
+    except (requests.RequestException, RuntimeError, ValueError, Exception) as e:
+        logger.error(f"Failed to trigger Alexa device discovery: {e}")
+        return False
+
+    @retry(stop=stop_after_delay(timeout), wait=wait_fixed(poll_interval), reraise=True)
+    def _poll_for_new_devices() -> bool:
+        """
+        Polls for new Alexa devices by checking if the entity count increases.
+        Raises a RuntimeError if no new devices are found (to trigger retry).
+        """
+        try:
+            current_entities = get_entities()
+            current_count = (
+                len(current_entities) if hasattr(current_entities, "__len__") else 0
+            )
+        except (requests.RequestException, ValueError) as e:
+            logger.warning(f"Error fetching Alexa entities during polling: {e}")
+            raise RuntimeError("Polling error") from e
+        if current_count > initial_count:
+            logger.info(
+                f"New Alexa devices discovered! Entity count increased to {current_count}."
+            )
+            return True
+        logger.debug(f"No new devices yet. Current count: {current_count}. Waiting...")
+        raise RuntimeError("No new devices yet")
+
+    # Use tenacity to handle polling and waiting
+    try:
+        _poll_for_new_devices()
+        return True
+    except (RetryError, RuntimeError, Exception) as e:
+        logger.warning(
+            f"Timeout reached after {timeout} seconds or polling error: {e}. No new Alexa devices discovered."
+        )
+        return False

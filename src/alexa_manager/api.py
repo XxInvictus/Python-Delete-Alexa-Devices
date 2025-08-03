@@ -605,6 +605,7 @@ def sync_alexa_group_entities(
 ) -> str:
     """
     Sync entities in an Alexa group to match desired appliance IDs.
+    Respects global DRY_RUN config: logs intended actions and skips API calls if enabled.
 
     Args:
         group (Dict[str, Any]): Alexa group dict.
@@ -617,9 +618,10 @@ def sync_alexa_group_entities(
     Returns:
         str: "updated", "skipped", or "error".
     """
+    from alexa_manager.config import DRY_RUN
+
     if headers is None:
         headers = ALEXA_HEADERS
-
     current_ids = set(group.get("applianceIds", []))
     desired_ids = set(desired_appliance_ids)
     if mode == "update_only":
@@ -627,6 +629,11 @@ def sync_alexa_group_entities(
         if to_add:
             updated_ids = list(current_ids | desired_ids)
             update_fields = {"applianceIds": updated_ids}
+            if DRY_RUN:
+                logger.info(
+                    f"[DRY-RUN] Would update group '{group['name']}' (ID: {group['id']}) with applianceIds: {updated_ids}"
+                )
+                return "updated"
             success = update_alexa_group(
                 group["id"], update_fields, alexa_groups, url_base, headers
             )
@@ -636,6 +643,11 @@ def sync_alexa_group_entities(
     elif mode == "full":
         if current_ids != desired_ids:
             update_fields = {"applianceIds": list(desired_ids)}
+            if DRY_RUN:
+                logger.info(
+                    f"[DRY-RUN] Would update group '{group['name']}' (ID: {group['id']}) with applianceIds: {list(desired_ids)}"
+                )
+                return "updated"
             success = update_alexa_group(
                 group["id"], update_fields, alexa_groups, url_base, headers
             )
@@ -657,6 +669,7 @@ def sync_ha_alexa_groups(
 ) -> Dict[str, Any]:
     """
     Orchestrate syncing of HA areas/groups with Alexa groups.
+    Respects global DRY_RUN config: logs intended actions and skips API calls if enabled.
 
     Args:
         ha_areas (Dict[str, List[str]]): HA area name to entity IDs mapping.
@@ -671,21 +684,28 @@ def sync_ha_alexa_groups(
     Returns:
         Dict[str, Any]: Summary of actions taken (created, updated, skipped, errors).
     """
+    from alexa_manager.config import DRY_RUN
+
     if headers is None:
         headers = ALEXA_HEADERS
-
     results = {"created": [], "updated": [], "skipped": [], "errors": []}
     # Find missing groups and create them
     if sync_groups:
         missing_groups = find_missing_ha_groups(ha_areas, alexa_groups)
         for area_name in missing_groups:
             appliance_ids = ha_to_alexa.get(area_name, [])
-            if create_alexa_group_for_ha_area(
-                area_name, appliance_ids, url_base, headers
-            ):
+            if DRY_RUN:
+                logger.info(
+                    f"[DRY-RUN] Would create Alexa group for HA area '{area_name}' with applianceIds: {appliance_ids}"
+                )
                 results["created"].append(area_name)
             else:
-                results["errors"].append((area_name, "Failed to create group"))
+                if create_alexa_group_for_ha_area(
+                    area_name, appliance_ids, url_base, headers
+                ):
+                    results["created"].append(area_name)
+                else:
+                    results["errors"].append((area_name, "Failed to create group"))
     # Sync entities in existing groups
     if sync_entities:
         alexa_group_by_name = {g.get("name"): g for g in alexa_groups}

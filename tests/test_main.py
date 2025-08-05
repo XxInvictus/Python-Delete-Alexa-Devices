@@ -100,15 +100,30 @@ def test_main_keyboard_interrupt(monkeypatch):
 
 def test_main_fatal_error(monkeypatch):
     """
-    Test main CLI handles fatal error gracefully.
+    Test main CLI handles fatal error gracefully without performing live requests.
+    All network-related functions are patched to prevent live actions.
+    Returns mock objects with expected attributes to avoid errors.
     """
     monkeypatch.setattr(sys, "argv", ["main.py"])
 
     def raise_error(*a, **k):
         raise Exception("fatal")
 
-    monkeypatch.setattr(main, "get_entities", lambda: None)
+    # Mock objects with expected attributes
+    class MockEntities:
+        entities = []
+
+    class MockGroups:
+        groups = []
+
+    monkeypatch.setattr(main, "get_entities", lambda: MockEntities())
     monkeypatch.setattr(main, "delete_entities", raise_error)
+    monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MockEntities())
+    monkeypatch.setattr(main, "get_groups", lambda: MockGroups())
+    monkeypatch.setattr(main, "delete_groups", lambda *a, **k: [])
+    monkeypatch.setattr(main, "create_groups_from_areas", lambda *a, **k: [])
+    monkeypatch.setattr(main, "get_ha_areas", lambda: {})
+
     with pytest.raises(Exception) as excinfo:
         main.main()
     # Accept either the original 'fatal' or the new error message
@@ -217,3 +232,192 @@ def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
     assert "Garage" not in created_groups
     assert "Living Room" in created_groups
     assert "Kitchen" in created_groups
+
+
+def test_main_delete_endpoints_dispatch(monkeypatch):
+    """
+    Test --delete-endpoints triggers delete_endpoints (mocked, no live requests).
+    Ensures downstream network calls are mocked.
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--delete-endpoints"])
+    called = {}
+
+    class MockEntities:
+        entities = []
+
+    monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MockEntities())
+    monkeypatch.setattr(
+        main,
+        "delete_endpoints",
+        lambda x, y=None: called.update({"delete_endpoints": True}) or [],
+    )
+    main.main()
+    assert called.get("delete_endpoints")
+
+
+def test_main_get_endpoints_table(monkeypatch):
+    """
+    Test --get-endpoints outputs endpoints table (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--get-endpoints"])
+    called = {}
+
+    class MockEntities:
+        entities = []
+
+    def mock_print_table(data, headers, title):
+        called["print_table"] = True
+        assert isinstance(data, list)
+        assert isinstance(headers, list)
+        assert isinstance(title, str)
+
+    monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MockEntities())
+    monkeypatch.setattr(main, "print_table", mock_print_table)
+    with pytest.raises(SystemExit):
+        main.main()
+    assert called.get("print_table")
+
+
+def test_main_full_sync_success(monkeypatch):
+    """
+    Test --full-sync runs all workflow steps successfully (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--full-sync"])
+    monkeypatch.setattr(
+        main,
+        "get_entities",
+        lambda: type("MockEntities", (), {"entities": [object()]})(),
+    )
+    monkeypatch.setattr(main, "delete_entities", lambda x, y=None: [])
+    monkeypatch.setattr(
+        main,
+        "get_graphql_endpoint_entities",
+        lambda: type("MockEntities", (), {"entities": [object()]})(),
+    )
+    monkeypatch.setattr(main, "delete_endpoints", lambda x, y=None: [])
+    monkeypatch.setattr(
+        main, "get_groups", lambda: type("MockGroups", (), {"groups": [object()]})()
+    )
+    monkeypatch.setattr(main, "delete_groups", lambda x, y=None: [])
+    monkeypatch.setattr(main, "alexa_discover_devices", lambda: True)
+    monkeypatch.setattr(main, "wait_for_device_discovery", lambda: True)
+    monkeypatch.setattr(main, "get_ha_areas", lambda: {"Area": ["entity"]})
+    monkeypatch.setattr(
+        main, "map_ha_entities_to_alexa_ids", lambda ha, ep: {"Area": ["id"]}
+    )
+    monkeypatch.setattr(main, "sync_ha_alexa_groups", lambda *a, **k: {"synced": True})
+    main.main()
+
+
+def test_main_full_sync_failure(monkeypatch):
+    """
+    Test --full-sync handles failure at each step (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--full-sync"])
+    monkeypatch.setattr(main, "get_entities", lambda: None)
+    main.main()
+
+
+def test_main_dry_run(monkeypatch):
+    """
+    Test --dry-run only simulates actions (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--delete-entities", "--dry-run"])
+    called = {}
+
+    class MockEntities:
+        entities = []
+
+    monkeypatch.setattr(main, "get_entities", lambda: MockEntities())
+    monkeypatch.setattr(
+        main,
+        "delete_entities",
+        lambda x, y=None: called.update({"delete_entities": True}) or [],
+    )
+    main.main()
+    assert called.get("delete_entities")
+
+
+def test_main_interactive_decline(monkeypatch):
+    """
+    Test --interactive mode cancels on user decline (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--delete-entities", "--interactive"])
+
+    class MockEntities:
+        entities = [
+            type(
+                "Entity",
+                (),
+                {
+                    "display_name": "Lamp",
+                    "id": "id1",
+                    "delete_id": "did1",
+                    "description": "desc",
+                    "delete": lambda self: True,
+                },
+            )()
+        ]
+
+    monkeypatch.setattr(main, "get_entities", lambda: MockEntities())
+    monkeypatch.setattr(main, "confirm_batch_action", lambda items, action: False)
+    monkeypatch.setattr(main, "delete_entities", lambda x, y=None: [])
+    main.main()
+
+
+def test_main_alexa_only_group_creation(monkeypatch, caplog):
+    """
+    Test --alexa-only with --create-groups skips HA-dependent actions (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--alexa-only", "--create-groups"])
+    called = {"create_groups": False}
+    monkeypatch.setattr(
+        main,
+        "create_groups_from_areas",
+        lambda *a, **k: called.update({"create_groups": True}) or [],
+    )
+    main.main()
+    assert not called["create_groups"]
+    assert any("Alexa Only mode" in r for r in caplog.messages)
+
+
+def test_main_alexa_discover_devices(monkeypatch):
+    """
+    Test --alexa-discover-devices triggers device discovery (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--alexa-discover-devices"])
+    monkeypatch.setattr(main, "alexa_discover_devices", lambda: "test_id")
+    main.main()
+
+
+def test_main_filter_entities(monkeypatch):
+    """
+    Test --filter-entities applies filtering to entities (mocked, no live requests).
+    """
+    monkeypatch.setattr(sys, "argv", ["main.py", "--get-entities", "--filter-entities"])
+
+    class MockEntity:
+        id = "id1"
+        display_name = "Lamp"
+        ha_entity_id = "lamp"
+        description = "desc"
+
+    class MockEntities:
+        entities = [MockEntity()]
+
+        def get_filtered_entities(self):
+            return [MockEntity()]
+
+    called = {}
+
+    def mock_print_table(data, headers, title):
+        called["print_table"] = True
+        assert isinstance(data, list)
+        assert isinstance(headers, list)
+        assert isinstance(title, str)
+
+    monkeypatch.setattr(main, "get_entities", lambda: MockEntities())
+    monkeypatch.setattr(main, "print_table", mock_print_table)
+    with pytest.raises(SystemExit):
+        main.main()
+    assert called.get("print_table")

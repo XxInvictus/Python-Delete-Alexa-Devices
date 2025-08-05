@@ -195,3 +195,166 @@ def test_alexa_group_invalid_params():
         assert True
     else:
         assert False, "AlexaGroup should raise TypeError for missing params"
+
+
+def test_alexa_entities_filtering():
+    """
+    Test AlexaEntities filtering logic for description text.
+    """
+    entities = AlexaEntities()
+    entities.filter_text = "match"
+    e1 = AlexaEntity("1", "Device1", "desc match")
+    e2 = AlexaEntity("2", "Device2", "desc no")
+    entities.add_entity(e1)
+    entities.add_entity(e2)
+    filtered = entities.get_filtered_entities()
+    assert e1 in filtered
+    assert e2 not in filtered
+
+
+def test_alexa_entities_delete_filtered_entities():
+    """
+    Test AlexaEntities.delete_filtered_entities deletes only filtered entities.
+    Network requests are mocked.
+    """
+    entities = AlexaEntities()
+    entities.filter_text = "delete"
+    e1 = AlexaEntity("1", "Device1", "desc delete")
+    e2 = AlexaEntity("2", "Device2", "desc keep")
+    entities.add_entity(e1)
+    entities.add_entity(e2)
+    # Patch AlexaEntity.delete to simulate deletion
+    from unittest.mock import patch
+
+    with patch.object(AlexaEntity, "delete", return_value=True) as mock_delete:
+        deleted_count = entities.delete_filtered_entities()
+        assert deleted_count == 1
+        mock_delete.assert_called_once()
+
+
+def test_alexa_entity_delete_dry_run():
+    """
+    Test AlexaEntity.delete in dry-run mode does not make network requests.
+    """
+    from unittest.mock import patch
+
+    entity = AlexaEntity("id", "name", "desc")
+    with patch("alexa_manager.models.DRY_RUN", True):
+        with patch.object(entity, "_simulate_delete", return_value=True) as mock_sim:
+            result = entity.delete()
+            assert result is True
+            mock_sim.assert_called_once()
+
+
+def test_alexa_entity_delete_api():
+    """
+    Test AlexaEntity.delete with API call, network requests are mocked.
+    """
+    from unittest.mock import patch
+
+    entity = AlexaEntity("id", "name", "desc")
+    with patch("alexa_manager.models.DRY_RUN", False):
+        with patch.object(entity, "_delete_with_retry", return_value=True) as mock_del:
+            result = entity.delete()
+            assert result is True
+            mock_del.assert_called_once()
+
+
+def test_alexa_group_create_dry_run():
+    """
+    Test AlexaGroup.create in dry-run mode does not make network requests.
+    """
+    from unittest.mock import patch
+
+    group = AlexaGroup("name", "id")
+    with patch("alexa_manager.models.DRY_RUN", True):
+        result = group.create()
+        assert result is True
+
+
+def test_alexa_group_create_api():
+    """
+    Test AlexaGroup.create with API call, network requests are mocked.
+    """
+    from unittest.mock import patch
+
+    group = AlexaGroup("name", "id")
+    with patch("alexa_manager.models.DRY_RUN", False):
+        with patch("requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.raise_for_status = lambda: None
+            result = group.create()
+            assert result is True
+            mock_post.assert_called_once()
+
+
+def test_alexa_group_delete_dry_run():
+    """
+    Test AlexaGroup.delete in dry-run mode does not make network requests.
+    """
+    from unittest.mock import patch
+
+    group = AlexaGroup("name", "id")
+    with patch("alexa_manager.models.DRY_RUN", True):
+        result = group.delete()
+        assert result is True
+
+
+def test_alexa_group_delete_api():
+    """
+    Test AlexaGroup.delete with API call, network requests are mocked.
+    """
+    from unittest.mock import patch
+
+    group = AlexaGroup("name", "id")
+    with patch("alexa_manager.models.DRY_RUN", False):
+        with patch.object(group, "_delete_with_retry", return_value=True) as mock_del:
+            result = group.delete()
+            assert result is True
+            mock_del.assert_called_once()
+
+
+def test_alexa_expanded_group_update_dry_run():
+    """
+    Test AlexaExpandedGroup.update in dry-run mode does not make network requests.
+    """
+    from unittest.mock import patch
+
+    group = AlexaExpandedGroup("name", "id")
+    with patch("alexa_manager.models.DRY_RUN", True):
+        result = group.update()
+        assert result is True
+
+
+def test_alexa_expanded_group_update_api():
+    """
+    Test AlexaExpandedGroup.update with API call, network requests are mocked.
+    """
+    from unittest.mock import patch
+
+    group = AlexaExpandedGroup("name", "id")
+    with patch("alexa_manager.models.DRY_RUN", False):
+        with patch("requests.put") as mock_put:
+            mock_put.return_value.status_code = 200
+            mock_put.return_value.raise_for_status = lambda: None
+            result = group.update()
+            assert result is True
+            mock_put.assert_called_once()
+
+
+def test_alexa_expanded_group_invalid_types():
+    """
+    Test AlexaExpandedGroup raises TypeError for invalid types in constructor.
+    """
+    import pytest
+
+    with pytest.raises(TypeError):
+        AlexaExpandedGroup(name=123, group_id="id")
+    with pytest.raises(TypeError):
+        AlexaExpandedGroup(name="name", group_id=123)
+    with pytest.raises(TypeError):
+        AlexaExpandedGroup(name="name", group_id="id", entity_id=123)
+    with pytest.raises(TypeError):
+        AlexaExpandedGroup(name="name", group_id="id", entity_type=123)
+    with pytest.raises(TypeError):
+        AlexaExpandedGroup(name="name", group_id="id", group_type=123)

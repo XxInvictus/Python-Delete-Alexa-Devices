@@ -119,6 +119,7 @@ uv run alexa_manager --help
 | `--filter-entities`     | _Modifier_  | Filter Alexa entities/endpoints by description before displaying or deleting. Only entities/endpoints whose description contains the configured filter text will be affected.                              |
 | `--dry-run`             | _Validator_ | Simulate all destructive actions. Only GET requests are performed; DELETE, PUT, POST actions are displayed (using Rich) and not executed. Useful for previewing what would happen without making changes. |
 | `--test-alexa-groups`   | _Validator_ | Test Alexa group creation, retrieval, and deletion with a randomly selected ApplianceId.                                                                                                                  |
+| `--full-sync`          | _Action_    | Performs a complete Alexa/HA sync workflow: deletes all Alexa skill entities and endpoint entities, deletes all Alexa groups, triggers device rediscovery via Home Assistant, waits for discovery to complete, and syncs Home Assistant areas with Alexa groups/entities. Supports dry run and interactive modes. |
 | `--help`                | _Option_    | Show help message and exit.                                                                                                                                                                               |
 
 ---
@@ -180,6 +181,24 @@ uv run alexa_manager --delete-entities --interactive
 uv run alexa_manager --create-groups --interactive
 ```
 In interactive mode, you will be asked to confirm each action by typing `yes` or `no`. Review the proposed changes carefully before confirming.
+
+**Full Sync Workflow (`--full-sync`):**
+This argument automates the entire Alexa/HA synchronization process:
+1. Deletes all Alexa skill entities belonging to the HA skill.
+2. Deletes all Alexa endpoint entities belonging to the HA skill.
+3. Deletes all Alexa groups.
+4. Triggers device rediscovery via Home Assistant.
+5. Waits for device discovery to complete.
+6. Syncs Home Assistant areas with Alexa groups, including respective entities.
+
+**Usage Examples:**
+```sh
+uv run alexa_manager --full-sync
+uv run alexa_manager --full-sync --dry-run
+uv run alexa_manager --full-sync --interactive
+```
+- `--dry-run` simulates all destructive actions and shows what would happen.
+- `--interactive` prompts for confirmation before each batch action.
 
 ---
 

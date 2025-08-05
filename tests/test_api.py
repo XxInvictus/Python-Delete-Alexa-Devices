@@ -658,3 +658,177 @@ def test_find_group_by_id_duplicate_ids():
     ]
     result = find_group_by_id(groups, "dup")
     assert result["name"] == "First"
+
+
+def test_safe_json_loads_valid():
+    """
+    Test _safe_json_loads with valid JSON string.
+    """
+    from alexa_manager.api import _safe_json_loads
+
+    assert _safe_json_loads('{"a": 1}') == {"a": 1}
+
+
+def test_safe_json_loads_trailing_comma():
+    """
+    Test _safe_json_loads with trailing comma.
+    """
+    from alexa_manager.api import _safe_json_loads
+
+    assert _safe_json_loads('{"a": 1,}') == {"a": 1}
+
+
+def test_safe_json_loads_missing_braces():
+    """
+    Test _safe_json_loads with missing braces.
+    """
+    from alexa_manager.api import _safe_json_loads
+
+    assert _safe_json_loads('"a": 1') == {"a": 1}
+
+
+def test_safe_json_loads_malformed():
+    """
+    Test _safe_json_loads with malformed input should raise.
+    """
+    from alexa_manager.api import _safe_json_loads
+    import pytest
+
+    with pytest.raises(Exception):
+        _safe_json_loads("not a json")
+
+
+@patch("alexa_manager.api.requests.post")
+def test_call_ha_template_api_success(mock_post):
+    """
+    Test call_ha_template_api returns response text on status 200.
+    """
+    from alexa_manager.api import call_ha_template_api
+
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.text = "ok"
+    result = call_ha_template_api({"template": "foo"})
+    assert result == "ok"
+
+
+@patch("alexa_manager.api.requests.post")
+def test_call_ha_template_api_non_200(mock_post):
+    """
+    Test call_ha_template_api returns None on non-200 status.
+    """
+    from alexa_manager.api import call_ha_template_api
+
+    mock_post.return_value.status_code = 500
+    mock_post.return_value.text = "error"
+    result = call_ha_template_api({"template": "foo"})
+    assert result is None
+
+
+@patch("alexa_manager.api.requests.post", side_effect=Exception("fail"))
+def test_call_ha_template_api_exception(mock_post):
+    """
+    Test call_ha_template_api returns None on exception.
+    """
+    from alexa_manager.api import call_ha_template_api
+
+    result = call_ha_template_api({"template": "foo"})
+    assert result is None
+
+
+@patch("alexa_manager.api.requests.post")
+def test_get_graphql_endpoint_entities_success(mock_post):
+    """
+    Test get_graphql_endpoint_entities returns AlexaEntities on valid response.
+    """
+    from alexa_manager.api import get_graphql_endpoint_entities
+
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {
+        "data": {
+            "endpoints": {
+                "items": [
+                    {
+                        "friendlyName": "Lamp",
+                        "legacyAppliance": {"applianceId": "appl1"},
+                    }
+                ]
+            }
+        }
+    }
+    entities = get_graphql_endpoint_entities()
+    assert hasattr(entities, "entities")
+    assert any(e.display_name == "Lamp" for e in entities.entities)
+
+
+@patch("alexa_manager.api.requests.post")
+def test_get_graphql_endpoint_entities_missing_keys(mock_post):
+    """
+    Test get_graphql_endpoint_entities returns empty AlexaEntities on missing keys.
+    """
+    from alexa_manager.api import get_graphql_endpoint_entities
+
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {"bad": "data"}
+    entities = get_graphql_endpoint_entities()
+    assert hasattr(entities, "entities")
+    assert len(entities.entities) == 0
+
+
+@patch("alexa_manager.api.requests.post", side_effect=Exception("fail"))
+def test_get_graphql_endpoint_entities_exception(mock_post):
+    """
+    Test get_graphql_endpoint_entities returns empty AlexaEntities on exception.
+    """
+    from alexa_manager.api import get_graphql_endpoint_entities
+
+    entities = get_graphql_endpoint_entities()
+    assert hasattr(entities, "entities")
+    assert len(entities.entities) == 0
+
+
+def test_normalize_alexa_appliance_id():
+    """
+    Test _normalize_alexa_appliance_id normalizes IDs correctly.
+    """
+    from alexa_manager.api import _normalize_alexa_appliance_id
+
+    assert _normalize_alexa_appliance_id("SKILL_foo==_sensor#lamp") == "sensor.lamp"
+    assert _normalize_alexa_appliance_id("sensor#lamp") == "sensor.lamp"
+
+
+def test_normalize_ha_entity_id():
+    """
+    Test _normalize_ha_entity_id returns lowercase.
+    """
+    from alexa_manager.api import _normalize_ha_entity_id
+
+    assert _normalize_ha_entity_id("Sensor.Lamp") == "sensor.lamp"
+
+
+def test_map_ha_entities_to_alexa_ids():
+    """
+    Test map_ha_entities_to_alexa_ids matches normalized IDs.
+    """
+    from alexa_manager.api import (
+        map_ha_entities_to_alexa_ids,
+        AlexaEntities,
+        AlexaEntity,
+    )
+
+    ha_areas = {"Living Room": ["sensor.lamp", "switch.tv"]}
+    endpoints = AlexaEntities()
+    endpoints.add_entity(
+        AlexaEntity(
+            entity_id="e1",
+            display_name="Lamp",
+            description="",
+            appliance_id="sensor#lamp",
+        )
+    )
+    endpoints.add_entity(
+        AlexaEntity(
+            entity_id="e2", display_name="TV", description="", appliance_id="switch#tv"
+        )
+    )
+    result = map_ha_entities_to_alexa_ids(ha_areas, endpoints)
+    assert result["Living Room"] == ["sensor#lamp", "switch#tv"]

@@ -258,3 +258,194 @@ def test_print_table_missing_headers():
 
     data = [{"A": 1}, {"A": 2}]
     print_table(data, ["X", "Y"], "Missing Headers Table")
+
+
+def test_convert_ha_area_name_basic():
+    """
+    Test convert_ha_area_name with a standard string containing underscores.
+    """
+    from alexa_manager.utils import convert_ha_area_name
+
+    assert convert_ha_area_name("living_room") == "Living Room"
+    assert convert_ha_area_name("bedroom_2") == "Bedroom 2"
+
+
+def test_convert_ha_area_name_empty():
+    """
+    Test convert_ha_area_name with an empty string.
+    """
+    from alexa_manager.utils import convert_ha_area_name
+
+    assert convert_ha_area_name("") == ""
+
+
+def test_convert_ha_area_name_multiple_underscores():
+    """
+    Test convert_ha_area_name with multiple underscores and leading/trailing spaces.
+    """
+    from alexa_manager.utils import convert_ha_area_name
+
+    assert convert_ha_area_name("_garage__door_") == "Garage  Door"
+
+
+def test_convert_ha_area_name_type_error():
+    """
+    Test convert_ha_area_name raises TypeError for non-string input.
+    """
+    from alexa_manager.utils import convert_ha_area_name
+    import pytest
+
+    with pytest.raises(TypeError):
+        convert_ha_area_name(None)
+    with pytest.raises(TypeError):
+        convert_ha_area_name(123)
+
+
+def test_normalize_area_name_basic():
+    """
+    Test normalize_area_name with typical input.
+    """
+    from alexa_manager.utils import normalize_area_name
+
+    assert normalize_area_name("Living_Room") == "living room"
+    assert normalize_area_name("  Kitchen  ") == "kitchen"
+
+
+def test_normalize_area_name_empty():
+    """
+    Test normalize_area_name with empty string.
+    """
+    from alexa_manager.utils import normalize_area_name
+
+    assert normalize_area_name("") == ""
+
+
+def test_normalize_area_name_multiple_underscores():
+    """
+    Test normalize_area_name with multiple underscores.
+    """
+    from alexa_manager.utils import normalize_area_name
+
+    assert normalize_area_name("_garage__door_") == "garage  door"
+
+
+def test_sanitize_list_basic():
+    """
+    Test sanitize_list with mixed types and dicts with key.
+    """
+    from alexa_manager.utils import sanitize_list
+
+    input_list = ["a", 1, {"name": "foo"}, {"other": "bar"}]
+    result = sanitize_list(input_list, key="name")
+    assert result == ["a", "1", "foo", "{'other': 'bar'}"]
+
+
+def test_sanitize_list_no_key():
+    """
+    Test sanitize_list with dicts and no key provided.
+    """
+    from alexa_manager.utils import sanitize_list
+
+    input_list = [{"x": 1}, "y"]
+    result = sanitize_list(input_list)
+    assert result == ["{'x': 1}", "y"]
+
+
+def test_sanitize_list_empty():
+    """
+    Test sanitize_list with empty list.
+    """
+    from alexa_manager.utils import sanitize_list
+
+    assert sanitize_list([]) == []
+
+
+def test_flatten_dict_basic():
+    """
+    Test flatten_dict with nested dicts and lists.
+    """
+    from alexa_manager.utils import flatten_dict
+
+    d = {"a": {"b": 2}, "c": [1, {"d": 3}]}
+    result = flatten_dict(d)
+    assert result["a"] == "{'b': 2}"
+    assert result["c"][1] == "{'d': 3}"
+
+
+def test_flatten_dict_non_dict():
+    """
+    Test flatten_dict with non-dict input.
+    """
+    from alexa_manager.utils import flatten_dict
+
+    assert flatten_dict(123) == 123
+    assert flatten_dict("abc") == "abc"
+
+
+def test_format_appliance_id_for_api_basic():
+    """
+    Test format_appliance_id_for_api with valid string.
+    """
+    from alexa_manager.utils import format_appliance_id_for_api
+    import json
+
+    appliance_id = "device123"
+    result = format_appliance_id_for_api(appliance_id)
+    assert json.loads(result) == {"applianceId": "device123"}
+
+
+def test_format_appliance_id_for_api_invalid():
+    """
+    Test format_appliance_id_for_api raises ValueError for invalid input.
+    """
+    from alexa_manager.utils import format_appliance_id_for_api
+    import pytest
+
+    with pytest.raises(ValueError):
+        format_appliance_id_for_api("")
+    with pytest.raises(ValueError):
+        format_appliance_id_for_api(None)
+    with pytest.raises(ValueError):
+        format_appliance_id_for_api(123)
+
+
+def test_dry_run_action_basic(monkeypatch):
+    """
+    Test dry_run_action prints expected message (fallback if rich not installed).
+    Forces fallback by removing 'rich' from sys.modules.
+    Handles trailing spaces and output variations.
+    Ensures print output is captured regardless of arguments.
+    """
+    import sys
+    from alexa_manager import utils
+
+    output = []
+    monkeypatch.setattr(
+        "builtins.print",
+        lambda *args, **kwargs: output.append(" ".join(str(a) for a in args)),
+    )
+    sys.modules["rich"] = None
+    sys.modules["rich.console"] = None
+    utils.dry_run_action("DELETE", "Device1", "http://api", "extra-info")
+    assert any(
+        "Would DELETE Device1 at http://api" in msg and "extra-info" in msg
+        for msg in output
+    ), f"Output was: {output}"
+    # Clean up monkeypatch
+    sys.modules.pop("rich", None)
+    sys.modules.pop("rich.console", None)
+
+
+def test_dry_run_action_rich(monkeypatch):
+    """
+    Test dry_run_action uses rich if available (mock Console.print).
+    """
+    from alexa_manager import utils
+
+    class MockConsole:
+        def print(self, msg):
+            utils._dry_run_msg = msg
+
+    monkeypatch.setattr("rich.console.Console", lambda: MockConsole())
+    utils.dry_run_action("CREATE", "Group1", "http://api")
+    assert "Would CREATE Group1 at [green]http://api[/green]" in utils._dry_run_msg

@@ -42,6 +42,8 @@ from alexa_manager.api import (
     get_ha_areas,
     map_ha_entities_to_alexa_ids,
     alexa_discover_devices,
+    wait_for_device_discovery,
+    sync_ha_alexa_groups,
 )
 
 logger = logging.getLogger(__name__)
@@ -196,7 +198,7 @@ def delete_entities(
         for failure in failed_deletions:
             logger.debug(f"failure: {failure}")
             logger.warning(
-                f"Name: '{failure.name}', Entity ID: '{failure.entity_id}', Device ID: '{failure.device_id}', Description: '{failure.description}'"
+                f"Name: '{failure['name']}', Entity ID: '{failure['entity_id']}', Device ID: '{failure['device_id']}', Description: '{failure['description']}'"
             )
     return failed_deletions
 
@@ -231,7 +233,55 @@ def delete_groups(
     if failed_deletions:
         logger.warning("\nFailed to delete the following groups:")
         for failure in failed_deletions:
-            logger.warning(f"Name: '{failure.name}', Group ID: '{failure.group_id}'")
+            logger.warning(
+                f"Name: '{failure['name']}', Group ID: '{failure['group_id']}'"
+            )
+    return failed_deletions
+
+
+def delete_endpoints(
+    endpoints: AlexaEntities, interactive_mode: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    Delete Alexa GraphQL endpoint entities (devices/endpoints discovered via GraphQL).
+
+    Args:
+        endpoints (AlexaEntities): AlexaEntities object containing endpoint entities to delete.
+        interactive_mode (bool): If True, require user confirmation before deletion.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries containing information about failed deletions.
+    """
+    failed_deletions: List[Dict[str, Any]] = []
+    # Safely get appliance_id for each endpoint, handle missing attribute
+    endpoint_descriptions = [
+        f"{getattr(endpoint, 'display_name', '')} (ID: {getattr(endpoint, 'id', '')}, Appliance ID: {getattr(endpoint, 'appliance_id', '')})"
+        for endpoint in getattr(endpoints, "entities", [])
+    ]
+    # Edge case: If DRY_RUN is not set, default to False
+    global DRY_RUN
+    if "DRY_RUN" not in globals():
+        DRY_RUN = False
+    if not DRY_RUN and endpoint_descriptions and interactive_mode:
+        if not confirm_batch_action(endpoint_descriptions, "delete"):
+            print("Endpoint deletion cancelled by user.")
+            return []
+
+    def per_endpoint(endpoint: Any, collector: List[Dict[str, Any]]):
+        process_deletion(endpoint, "entity", DRY_RUN, collector)
+
+    run_with_progress_bar(
+        list(getattr(endpoints, "entities", [])),
+        "Deleting Alexa endpoint entities...",
+        per_endpoint,
+        failed_deletions,
+    )
+    if failed_deletions:
+        logger.warning("\nFailed to delete the following endpoint entities:")
+        for failure in failed_deletions:
+            logger.warning(
+                f"Name: '{failure.get('name', '')}', Entity ID: '{failure.get('entity_id', '')}', Appliance ID: '{failure.get('device_id', '')}', Description: '{failure.get('description', '')}'"
+            )
     return failed_deletions
 
 
@@ -386,6 +436,11 @@ Examples:
         "--alexa-discover-devices",
         action="store_true",
         help="Trigger Alexa to discover new devices via Home Assistant Alexa Media Player integration.",
+    )
+    parser.add_argument(
+        "--full-sync",
+        action="store_true",
+        help="Delete all Alexa entities, endpoints, and groups; rediscover HA entities in Alexa; wait for discovery; and sync HA areas with Alexa groups/entities. Supports dry run and interactive modes.",
     )
     args = parser.parse_args()
     # Validate mutually exclusive arguments if needed
@@ -594,11 +649,13 @@ def dispatch_actions(args: argparse.Namespace) -> Dict[str, List[Dict[str, Any]]
                 filtered_endpoints_obj = AlexaEntities()
                 for e in endpoints_obj.get_filtered_entities():
                     filtered_endpoints_obj.add_entity(e)
-                failed_endpoint_deletions = delete_entities(
+                # Use improved delete_endpoints function
+                failed_endpoint_deletions = delete_endpoints(
                     filtered_endpoints_obj, args.interactive
                 )
             else:
-                failed_endpoint_deletions = delete_entities(
+                # Use improved delete_endpoints function
+                failed_endpoint_deletions = delete_endpoints(
                     endpoints_obj, args.interactive
                 )
     if args.delete_groups or do_all:
@@ -660,6 +717,139 @@ def report_failures(failures: Dict[str, List[Dict[str, Any]]]) -> None:
         logger.info("- Created all Home Assistant areas as Alexa groups")
 
 
+def full_sync_workflow(args: argparse.Namespace) -> Dict[str, Any]:
+    """
+    Perform a full Alexa/Home Assistant synchronization workflow.
+
+    This workflow executes the following steps in order:
+    1. Delete all Alexa skill entities.
+    2. Delete all Alexa endpoint entities.
+    3. Delete all Alexa groups.
+    4. Trigger Alexa device discovery via Home Assistant.
+    5. Wait for device discovery to complete.
+    6. Synchronize Home Assistant areas with Alexa groups/entities.
+
+    If any step fails, the workflow stops and returns a summary of completed steps and errors.
+
+    Parameters:
+        args (argparse.Namespace): Parsed command-line arguments controlling workflow options.
+
+    Returns:
+        Dict[str, Any]: A summary dictionary containing the status of each step and any errors encountered.
+    """
+    logger.info("Starting full Alexa/HA sync workflow...")
+    summary = {
+        "entities_deleted": False,
+        "endpoints_deleted": False,
+        "groups_deleted": False,
+        "discovery_triggered": False,
+        "discovery_success": False,
+        "sync_success": False,
+        "sync_results": None,
+        "errors": [],
+    }
+    # Step 1: Delete Alexa skill entities
+    try:
+        entities_obj = get_entities()
+        if entities_obj and hasattr(entities_obj, "entities") and entities_obj.entities:
+            logger.info("Deleting Alexa skill entities...")
+            delete_entities(entities_obj, args.interactive)
+            summary["entities_deleted"] = True
+        else:
+            logger.warning("No Alexa skill entities found.")
+            summary["errors"].append("No Alexa skill entities found.")
+            return summary
+    except Exception as e:
+        logger.error(f"Error deleting Alexa skill entities: {e}")
+        summary["errors"].append(str(e))
+        return summary
+    # Step 2: Delete Alexa endpoint entities
+    try:
+        endpoints_obj = get_graphql_endpoint_entities()
+        if (
+            endpoints_obj
+            and hasattr(endpoints_obj, "entities")
+            and endpoints_obj.entities
+        ):
+            logger.info("Deleting Alexa endpoint entities...")
+            delete_endpoints(endpoints_obj, args.interactive)
+            summary["endpoints_deleted"] = True
+        else:
+            logger.warning("No Alexa endpoint entities found.")
+            summary["errors"].append("No Alexa endpoint entities found.")
+            return summary
+    except Exception as e:
+        logger.error(f"Error deleting Alexa endpoint entities: {e}")
+        summary["errors"].append(str(e))
+        return summary
+    # Step 3: Delete Alexa groups
+    try:
+        groups_obj = get_groups()
+        if groups_obj and hasattr(groups_obj, "groups") and groups_obj.groups:
+            logger.info("Deleting Alexa groups...")
+            delete_groups(groups_obj, args.interactive)
+            summary["groups_deleted"] = True
+        else:
+            logger.warning("No Alexa groups found.")
+            summary["errors"].append("No Alexa groups found.")
+            return summary
+    except Exception as e:
+        logger.error(f"Error deleting Alexa groups: {e}")
+        summary["errors"].append(str(e))
+        return summary
+    # Step 4: Rediscover HA entities in Alexa
+    try:
+        logger.info("Triggering Alexa device discovery via Home Assistant...")
+        alexa_discover_devices()
+        summary["discovery_triggered"] = True
+    except Exception as e:
+        logger.error(f"Error triggering Alexa device discovery: {e}")
+        summary["errors"].append(str(e))
+        return summary
+    # Step 5: Wait for device discovery to complete
+    try:
+        logger.info("Waiting for Alexa device discovery to complete...")
+        discovery_success = wait_for_device_discovery()
+        summary["discovery_success"] = discovery_success
+        if not discovery_success:
+            logger.warning("Device discovery did not complete successfully.")
+            summary["errors"].append("Device discovery did not complete successfully.")
+            return summary
+    except Exception as e:
+        logger.error(f"Error during device discovery: {e}")
+        summary["errors"].append(str(e))
+        return summary
+    # Step 6: Sync HA areas with Alexa groups/entities
+    try:
+        logger.info("Syncing HA areas with Alexa groups/entities...")
+        ha_areas = get_ha_areas()
+        endpoints = get_graphql_endpoint_entities()
+        if not ha_areas or not endpoints:
+            logger.warning("Cannot sync: missing HA areas or endpoints.")
+            summary["sync_success"] = False
+            summary["errors"].append("Cannot sync: missing HA areas or endpoints.")
+            return summary
+        area_to_alexa_ids = map_ha_entities_to_alexa_ids(ha_areas, endpoints)
+        alexa_groups = get_groups().groups if hasattr(get_groups(), "groups") else []
+        sync_results = sync_ha_alexa_groups(
+            ha_areas,
+            [g.__dict__ for g in alexa_groups],
+            area_to_alexa_ids,
+            mode="update_only",
+            sync_groups=True,
+            sync_entities=True,
+        )
+        summary["sync_results"] = sync_results
+        summary["sync_success"] = True
+        logger.info(f"Sync results: {sync_results}")
+    except Exception as e:
+        logger.error(f"Error syncing HA areas with Alexa groups/entities: {e}")
+        summary["errors"].append(str(e))
+        return summary
+    logger.info("Full sync workflow completed.")
+    return summary
+
+
 def main() -> None:
     """
     Main entry point for the script. Parses command-line arguments and runs selected actions.
@@ -676,6 +866,9 @@ def main() -> None:
         return
     if args.test_alexa_groups:
         test_alexa_groups()
+        return
+    if args.full_sync:
+        full_sync_workflow(args)
         return
     handle_get_actions(args)
     failures = dispatch_actions(args)

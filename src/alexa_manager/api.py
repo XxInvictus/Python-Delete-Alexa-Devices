@@ -44,17 +44,24 @@ def _safe_json_loads(text: str) -> Any:
     """
     Safely load JSON from a string, handling trailing commas and missing braces.
 
+    This function removes a trailing comma before the closing brace in a JSON object,
+    which is a common formatting error from some template engines. It does not attempt
+    to fix deeply malformed JSON, but handles the most frequent edge cases.
+
     Args:
         text (str): The JSON string to load.
 
     Returns:
         Any: The loaded JSON object.
     """
+    import re
+
     text = text.strip()
-    if text.endswith(","):
-        text = text[:-1]
+    # Add braces if missing
     if not (text.startswith("{") and text.endswith("}")):
         text = "{" + text + "}"
+    # Remove trailing comma before closing brace (object only)
+    text = re.sub(r",\s*}", "}", text)
     return json.loads(text)
 
 

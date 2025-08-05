@@ -435,8 +435,6 @@ class AlexaGroup:
             ValueError: If applianceIds are not all strings.
             requests.HTTPError: If creation fails after retries.
         """
-        from alexa_manager.config import DRY_RUN
-
         url = URLS.get("CREATE_GROUP", "")
         if DRY_RUN:
             console.print(

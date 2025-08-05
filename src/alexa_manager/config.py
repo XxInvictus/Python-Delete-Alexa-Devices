@@ -95,14 +95,14 @@ class AlexaManagerConfig(BaseModel):
     SHOULD_SLEEP: bool = True
     DO_NOT_DELETE: bool = False
     ALEXA_HOST: str = "localhost"
-    COOKIE: str = ""
-    X_AMZN_ALEXA_APP: str = ""
-    CSRF: str = ""
-    DELETE_SKILL: str = ""
+    COOKIE: str  # Required: Alexa session cookie
+    X_AMZN_ALEXA_APP: str = ""  # Optional, but may be required for some endpoints
+    CSRF: str = ""  # Optional, but may be required for some endpoints
+    DELETE_SKILL: str = ""  # Optional, but may be required for some endpoints
     USER_AGENT: str = "Mozilla/5.0"
     ROUTINE_VERSION: str = "1.0"
     HA_HOST: str = "localhost"
-    HA_API_KEY: str = ""
+    HA_API_KEY: str = ""  # Optional: Home Assistant API key
     IGNORED_HA_AREAS: list[str] = Field(default_factory=list)
     DESCRIPTION_FILTER_TEXT: str = (
         ""  # Added for compatibility with tests and AlexaEntities

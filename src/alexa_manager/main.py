@@ -742,8 +742,7 @@ def full_sync_workflow(args: argparse.Namespace) -> Dict[str, Any]:
         "entities_deleted": False,
         "endpoints_deleted": False,
         "groups_deleted": False,
-        "discovery_triggered": False,
-        "discovery_success": False,
+        "discovery": False,
         "sync_success": False,
         "sync_results": None,
         "errors": [],
@@ -797,20 +796,13 @@ def full_sync_workflow(args: argparse.Namespace) -> Dict[str, Any]:
         logger.error(f"Error deleting Alexa groups: {e}")
         summary["errors"].append(str(e))
         return summary
-    # Step 4: Rediscover HA entities in Alexa
+    # Step 4: Rediscover HA entities in Alexa and wait for completion
     try:
-        logger.info("Triggering Alexa device discovery via Home Assistant...")
-        alexa_discover_devices()
-        summary["discovery_triggered"] = True
-    except Exception as e:
-        logger.error(f"Error triggering Alexa device discovery: {e}")
-        summary["errors"].append(str(e))
-        return summary
-    # Step 5: Wait for device discovery to complete
-    try:
-        logger.info("Waiting for Alexa device discovery to complete...")
+        logger.info(
+            "Triggering Alexa device discovery via Home Assistant and waiting for completion..."
+        )
         discovery_success = wait_for_device_discovery()
-        summary["discovery_success"] = discovery_success
+        summary["discovery"] = discovery_success
         if not discovery_success:
             logger.warning("Device discovery did not complete successfully.")
             summary["errors"].append("Device discovery did not complete successfully.")

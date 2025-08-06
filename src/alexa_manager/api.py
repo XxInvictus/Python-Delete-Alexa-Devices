@@ -9,6 +9,7 @@ This module contains functions for fetching and processing data from Alexa and H
 import json
 from typing import Any, Dict, List, Optional
 import requests
+from alexa_manager import config as dynamic_config
 from alexa_manager.config import (
     DEBUG,
     DEBUG_FILES,
@@ -625,8 +626,6 @@ def sync_alexa_group_entities(
     Returns:
         str: "updated", "skipped", or "error".
     """
-    from alexa_manager.config import DRY_RUN
-
     if headers is None:
         headers = ALEXA_HEADERS
     current_ids = set(group.get("applianceIds", []))
@@ -636,7 +635,7 @@ def sync_alexa_group_entities(
         if to_add:
             updated_ids = list(current_ids | desired_ids)
             update_fields = {"applianceIds": updated_ids}
-            if DRY_RUN:
+            if dynamic_config.DRY_RUN:
                 logger.info(
                     f"[DRY-RUN] Would update group '{group['name']}' (ID: {group['id']}) with applianceIds: {updated_ids}"
                 )
@@ -650,7 +649,7 @@ def sync_alexa_group_entities(
     elif mode == "full":
         if current_ids != desired_ids:
             update_fields = {"applianceIds": list(desired_ids)}
-            if DRY_RUN:
+            if dynamic_config.DRY_RUN:
                 logger.info(
                     f"[DRY-RUN] Would update group '{group['name']}' (ID: {group['id']}) with applianceIds: {list(desired_ids)}"
                 )
@@ -753,7 +752,6 @@ def send_alexa_command_via_ha_service(alexa_command: str) -> Optional[str]:
         "media_content_id": alexa_command,
         "media_content_type": "custom",
     }
-    used_id = None
     if ALEXA_DEVICE_ID:
         payload["device_id"] = ALEXA_DEVICE_ID
         used_id = ALEXA_DEVICE_ID
@@ -794,6 +792,11 @@ def alexa_discover_devices() -> Optional[str]:
     Returns:
         Optional[str]: The device_id or entity_id used if successful, None otherwise.
     """
+    if dynamic_config.DRY_RUN:
+        logger.info(
+            "[DRY-RUN] Would trigger Alexa device discovery via HA. Skipping actual call."
+        )
+        return None
     return send_alexa_command_via_ha_service("discover devices")
 
 
@@ -845,6 +848,13 @@ def wait_for_device_discovery(
     except (requests.RequestException, RuntimeError, ValueError, Exception) as e:
         logger.error(f"Failed to trigger Alexa device discovery: {e}")
         return False
+
+    # Dry run: Assume discovery completed successfully for workflow purposes.
+    if dynamic_config.DRY_RUN:
+        logger.info(
+            "[DRY-RUN] Skipping polling for new Alexa devices. Assuming discovery completed successfully."
+        )
+        return True
 
     @retry(stop=stop_after_delay(timeout), wait=wait_fixed(poll_interval), reraise=True)
     def _poll_for_new_devices() -> bool:

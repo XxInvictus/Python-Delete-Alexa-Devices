@@ -139,7 +139,7 @@ def print_table(data: List[Dict[str, Any]], columns: List[str], title: str) -> N
         console.print(table)
 
 
-def convert_ha_area_name(area_name: str) -> str:
+def convert_normalised_area_to_alexa_name(area_name: str) -> str:
     """
     Convert a Home Assistant Area name for Alexa Group comparison/use.
 
@@ -161,18 +161,18 @@ def convert_ha_area_name(area_name: str) -> str:
     return area_name.replace("_", " ").strip().title()
 
 
-def normalize_area_name(area_name: str) -> str:
+def normalise_area_name(area_name: str) -> str:
     """
-    Normalize area names for comparison between HA and Alexa formats.
+    Normalise area names for comparison between HA and Alexa formats.
     Converts to lowercase, replaces underscores with spaces, and strips whitespace.
 
     Args:
-        area_name (str): The area name to normalize.
+        area_name (str): The area name to normalise.
 
     Returns:
-        str: Normalized area name.
+        str: Normalised area name.
     """
-    return area_name.replace("_", " ").strip().lower()
+    return area_name.strip().replace(" ", "_").lower()
 
 
 def sanitize_list(input_list: List[Any], key: Optional[str] = None) -> List[str]:

@@ -200,7 +200,9 @@ def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
     # Patch IGNORED_HA_AREAS constant
     monkeypatch.setattr(main, "IGNORED_HA_AREAS", ["Garage"])
     # Patch normalization to identity for test
-    monkeypatch.setattr(main, "convert_ha_area_name", lambda name: name)
+    monkeypatch.setattr(
+        main, "convert_normalised_area_to_alexa_name", lambda name: name
+    )
     # Patch dependencies
     monkeypatch.setattr(main, "get_graphql_endpoint_entities", lambda: MagicMock())
     monkeypatch.setattr(
@@ -220,7 +222,9 @@ def test_create_groups_from_areas_respects_ignored_areas(monkeypatch):
             return True
 
     monkeypatch.setattr(main, "AlexaGroup", DummyAlexaGroup)
-    monkeypatch.setattr(main, "convert_ha_area_name", lambda name: name)
+    monkeypatch.setattr(
+        main, "convert_normalised_area_to_alexa_name", lambda name: name
+    )
     monkeypatch.setattr(
         main,
         "run_with_progress_bar",

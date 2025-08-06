@@ -786,28 +786,28 @@ def test_get_graphql_endpoint_entities_exception(mock_post):
     assert len(entities.entities) == 0
 
 
-def test_normalize_alexa_appliance_id():
+def test_normalise_alexa_appliance_id():
     """
-    Test _normalize_alexa_appliance_id normalizes IDs correctly.
+    Test _normalise_alexa_appliance_id normalises IDs correctly.
     """
-    from alexa_manager.api import _normalize_alexa_appliance_id
+    from alexa_manager.api import _normalise_alexa_appliance_id
 
-    assert _normalize_alexa_appliance_id("SKILL_foo==_sensor#lamp") == "sensor.lamp"
-    assert _normalize_alexa_appliance_id("sensor#lamp") == "sensor.lamp"
+    assert _normalise_alexa_appliance_id("SKILL_foo==_sensor#lamp") == "sensor.lamp"
+    assert _normalise_alexa_appliance_id("sensor#lamp") == "sensor.lamp"
 
 
-def test_normalize_ha_entity_id():
+def test_normalise_ha_entity_id():
     """
-    Test _normalize_ha_entity_id returns lowercase.
+    Test _normalise_ha_entity_id returns lowercase.
     """
-    from alexa_manager.api import _normalize_ha_entity_id
+    from alexa_manager.api import _normalise_ha_entity_id
 
-    assert _normalize_ha_entity_id("Sensor.Lamp") == "sensor.lamp"
+    assert _normalise_ha_entity_id("Sensor.Lamp") == "sensor.lamp"
 
 
 def test_map_ha_entities_to_alexa_ids():
     """
-    Test map_ha_entities_to_alexa_ids matches normalized IDs.
+    Test map_ha_entities_to_alexa_ids matches normalised IDs.
     """
     from alexa_manager.api import (
         map_ha_entities_to_alexa_ids,

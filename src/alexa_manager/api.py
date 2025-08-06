@@ -19,6 +19,7 @@ from alexa_manager.config import (
     ALEXA_DEVICE_ID,
     ALEXA_ENTITY_ID,
     ALEXA_DEVICE_DISCOVERY_TIMEOUT,
+    IGNORED_HA_AREAS,  # Import ignored areas config
 )
 from alexa_manager.models import (
     AlexaEntities,
@@ -26,7 +27,11 @@ from alexa_manager.models import (
     AlexaGroups,
     AlexaExpandedGroup,
 )
-from alexa_manager.utils import rate_limited
+from alexa_manager.utils import (
+    rate_limited,
+    normalise_area_name,
+    convert_normalised_area_to_alexa_name,
+)  # Always use this for area normalization
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -333,9 +338,9 @@ def get_ha_areas() -> Dict[str, List[str]]:
         return {}
 
 
-def _normalize_alexa_appliance_id(appliance_id: str) -> str:
+def _normalise_alexa_appliance_id(appliance_id: str) -> str:
     """
-    Normalize Alexa Appliance ID for comparison with Home Assistant Entity ID.
+    Normalise Alexa Appliance ID for comparison with Home Assistant Entity ID.
     Removes SKILL identifier and replaces '#' with '.'.
     Example:
         'SKILL_...==_sensor#back_tap_timer_soil_temperature_1' -> 'sensor.back_tap_timer_soil_temperature_1'
@@ -345,9 +350,9 @@ def _normalize_alexa_appliance_id(appliance_id: str) -> str:
     return appliance_id.replace("#", ".")
 
 
-def _normalize_ha_entity_id(ha_entity_id: str) -> str:
+def _normalise_ha_entity_id(ha_entity_id: str) -> str:
     """
-    Normalize Home Assistant Entity ID for comparison.
+    Normalise Home Assistant Entity ID for comparison.
     Returns the entity ID in lowercase.
     Example:
         'sensor.Back_Tap_Timer_Soil_Temperature_1' -> 'sensor.back_tap_timer_soil_temperature_1'
@@ -359,10 +364,10 @@ def map_ha_entities_to_alexa_ids(
     ha_areas: Dict[str, List[str]], endpoints: AlexaEntities
 ) -> Dict[str, List[str]]:
     """
-    Map Home Assistant entity IDs to Alexa Appliance IDs for each area using normalized exact matching.
+    Map Home Assistant entity IDs to Alexa Appliance IDs for each area using normalised exact matching.
 
-    This function ensures that only HA entities with an exact normalized match to an Alexa Appliance ID are mapped.
-    The mapping is not based on list order, but on normalized string equality.
+    This function ensures that only HA entities with an exact normalised match to an Alexa Appliance ID are mapped.
+    The mapping is not based on list order, but on normalised string equality.
 
     Args:
         ha_areas (Dict[str, List[str]]): Mapping area names to lists of HA entity IDs.
@@ -371,9 +376,9 @@ def map_ha_entities_to_alexa_ids(
     Returns:
         Dict[str, List[str]]: Mapping area names to lists of Alexa applianceIds (only exact matches).
     """
-    # Build a lookup of normalized Alexa Appliance IDs to original appliance IDs
-    normalized_alexa = {
-        _normalize_alexa_appliance_id(e.appliance_id): e.appliance_id
+    # Build a lookup of normalised Alexa Appliance IDs to original appliance IDs
+    normalised_alexa = {
+        _normalise_alexa_appliance_id(e.appliance_id): e.appliance_id
         for e in endpoints.entities
         if e.appliance_id
     }
@@ -381,10 +386,10 @@ def map_ha_entities_to_alexa_ids(
     for area, ha_ids in ha_areas.items():
         matched_alexa_ids = []
         for ha_id in ha_ids:
-            norm_ha_id = _normalize_ha_entity_id(ha_id)
-            # Only add Alexa ID if there is an exact normalized match
-            if norm_ha_id in normalized_alexa:
-                matched_alexa_ids.append(normalized_alexa[norm_ha_id])
+            norm_ha_id = _normalise_ha_entity_id(ha_id)
+            # Only add Alexa ID if there is an exact normalised match
+            if norm_ha_id in normalised_alexa:
+                matched_alexa_ids.append(normalised_alexa[norm_ha_id])
         area_to_alexa_ids[area] = matched_alexa_ids
     return area_to_alexa_ids
 
@@ -546,8 +551,16 @@ def find_missing_ha_groups(
     Returns:
         List[str]: List of HA area names missing in Alexa groups.
     """
-    alexa_group_names = {g.get("name") for g in alexa_groups}
-    return [area for area in ha_areas if area not in alexa_group_names]
+    # Normalise Alexa group names for comparison
+    alexa_group_names_normalised = {
+        normalise_area_name(g.get("name", "")) for g in alexa_groups
+    }
+    # Only return HA areas whose normalised name is not in Alexa group names
+    return [
+        area
+        for area in ha_areas
+        if normalise_area_name(area) not in alexa_group_names_normalised
+    ]
 
 
 def create_alexa_group_for_ha_area(
@@ -690,44 +703,81 @@ def sync_ha_alexa_groups(
     Returns:
         Dict[str, Any]: Summary of actions taken (created, updated, skipped, errors).
     """
-    from alexa_manager.config import DRY_RUN
-
     if headers is None:
         headers = ALEXA_HEADERS
     results = {"created": [], "updated": [], "skipped": [], "errors": []}
-    # Find missing groups and create them
+
+    # Build a mapping from normalised area name to original area name
+    # This ensures we can filter and map back to the original for group creation
+    normalised_to_original = {normalise_area_name(k): k for k in ha_areas.keys()}
+
+    # IGNORED_HA_AREAS is already normalised at config load time using normalise_area_name
+    # Only keep areas whose normalised name is not in IGNORED_HA_AREAS
+    filtered_normalised = [
+        n for n in normalised_to_original if n not in IGNORED_HA_AREAS
+    ]
+
+    # For group creation, use the original area name (not normalised)
     if sync_groups:
-        missing_groups = find_missing_ha_groups(ha_areas, alexa_groups)
+        filtered_ha_areas = {
+            normalised_to_original[n]: ha_areas[normalised_to_original[n]]
+            for n in filtered_normalised
+        }
+        filtered_ha_to_alexa = {
+            normalised_to_original[n]: ha_to_alexa.get(normalised_to_original[n], [])
+            for n in filtered_normalised
+        }
+        missing_groups = find_missing_ha_groups(filtered_ha_areas, alexa_groups)
         for area_name in missing_groups:
-            appliance_ids = ha_to_alexa.get(area_name, [])
-            if DRY_RUN:
+            appliance_ids = filtered_ha_to_alexa.get(area_name, [])
+            # Convert normalised area name to pretty Alexa group name for creation
+            pretty_area_name = convert_normalised_area_to_alexa_name(
+                normalise_area_name(area_name)
+            )
+            if dynamic_config.DRY_RUN:
                 logger.info(
-                    f"[DRY-RUN] Would create Alexa group for HA area '{area_name}' with applianceIds: {appliance_ids}"
+                    f"[DRY-RUN] Would create Alexa group for HA area '{pretty_area_name}' with applianceIds: {appliance_ids}"
                 )
-                results["created"].append(area_name)
+                results["created"].append(pretty_area_name)
             else:
                 if create_alexa_group_for_ha_area(
-                    area_name, appliance_ids, url_base, headers
+                    pretty_area_name, appliance_ids, url_base, headers
                 ):
-                    results["created"].append(area_name)
+                    results["created"].append(pretty_area_name)
                 else:
-                    results["errors"].append((area_name, "Failed to create group"))
-    # Sync entities in existing groups
+                    results["errors"].append(
+                        (pretty_area_name, "Failed to create group")
+                    )
+    # For entity syncing, do not filter ignored areas
     if sync_entities:
-        alexa_group_by_name = {g.get("name"): g for g in alexa_groups}
+        # Build a mapping of normalised Alexa group names to group objects
+        alexa_group_by_normalised_name = {
+            normalise_area_name(g.get("name")): g for g in alexa_groups
+        }
+        # Build a mapping of normalised area name to pretty Alexa group name
+        pretty_name_by_normalised = {
+            normalise_area_name(k): convert_normalised_area_to_alexa_name(
+                normalise_area_name(k)
+            )
+            for k in ha_areas.keys()
+        }
         for area_name, ha_entity_ids in ha_areas.items():
-            group = alexa_group_by_name.get(area_name)
+            norm_area_name = normalise_area_name(area_name)
+            group = alexa_group_by_normalised_name.get(norm_area_name)
+            pretty_area_name = pretty_name_by_normalised.get(norm_area_name, area_name)
             if group:
                 desired_appliance_ids = ha_to_alexa.get(area_name, [])
                 action = sync_alexa_group_entities(
                     group, desired_appliance_ids, mode, alexa_groups, url_base, headers
                 )
                 if action == "updated":
-                    results["updated"].append(area_name)
+                    results["updated"].append(pretty_area_name)
                 elif action == "skipped":
-                    results["skipped"].append(area_name)
+                    results["skipped"].append(pretty_area_name)
                 elif action == "error":
-                    results["errors"].append((area_name, "Failed to sync entities"))
+                    results["errors"].append(
+                        (pretty_area_name, "Failed to sync entities")
+                    )
     return results
 
 

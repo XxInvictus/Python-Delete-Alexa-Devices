@@ -109,7 +109,7 @@ class AlexaEntity:
         id (str): Unique identifier for the entity (applianceKey).
         display_name (str): Display name of the entity.
         description (str): Description of the entity.
-        ha_entity_id (str): Normalized Home Assistant entity ID.
+        ha_entity_id (str): Normalised Home Assistant entity ID.
         delete_id (str): Identifier used for deletion.
         appliance_id (str): Alexa applianceId (from endpoints).
     """
@@ -144,19 +144,19 @@ class AlexaEntity:
         self.id: str = entity_id
         self.display_name: str = display_name
         self.description: str = description
-        self.ha_entity_id: str = self._normalize_ha_entity_id(description)
+        self.ha_entity_id: str = self._normalise_ha_entity_id(description)
         self.delete_id: str = self._generate_delete_id(description)
         self.appliance_id: str = appliance_id
 
-    def _normalize_ha_entity_id(self, description: str) -> str:
+    def _normalise_ha_entity_id(self, description: str) -> str:
         """
-        Normalize Home Assistant entity ID from description.
+        Normalise Home Assistant entity ID from description.
 
         Parameters:
             description (str): The entity description.
 
         Returns:
-            str: Normalized HA entity ID.
+            str: Normalised HA entity ID.
         """
         return description.replace(" via Home Assistant", "").lower()
 

@@ -160,15 +160,3 @@ def test_load_config_invalid_types(tmp_path):
     config = load_config(str(global_path), str(user_path))
     assert isinstance(config["foo"], list)
     assert config["bar"] == "override"
-
-
-def test_normalize_area_name():
-    """
-    Test normalize_area_name function for various edge cases.
-    """
-    from alexa_manager.config import normalize_area_name
-
-    assert normalize_area_name("Living_Room") == "living room"
-    assert normalize_area_name("  Kitchen  ") == "kitchen"
-    assert normalize_area_name("") == ""
-    assert normalize_area_name("BED_room_") == "bed room"

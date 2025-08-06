@@ -32,7 +32,7 @@ from alexa_manager.models import (
 from alexa_manager.utils import (
     run_with_progress_bar,
     print_table,
-    convert_ha_area_name,
+    convert_normalised_area_to_alexa_name,
     format_appliance_id_for_api,
 )
 from alexa_manager.api import (
@@ -304,7 +304,7 @@ def create_groups_from_areas(
         if area_name in IGNORED_HA_AREAS:
             logger.info(f"Skipping ignored area: {area_name}")
             continue
-        group_name = convert_ha_area_name(area_name)
+        group_name = convert_normalised_area_to_alexa_name(area_name)
         logger.info(f"Processing area '{area_name}' -> group '{group_name}'")
 
         # Check if the group already exists
@@ -325,7 +325,6 @@ def create_groups_from_areas(
             json.loads(format_appliance_id_for_api(ha_entity_id))["applianceId"]
             for ha_entity_id in ha_entity_ids
         ]
-        # Ensure DRY_RUN is respected at runtime
         success = group.create()
         if not success:
             logger.error(f"Failed to create group: {group_name}")
@@ -563,7 +562,7 @@ def handle_get_actions(args: argparse.Namespace) -> None:
             mapping_rows = []
             for area, ha_ids in ha_areas.items():
                 alexa_ids = area_to_alexa_ids.get(area, [])
-                # Build a lookup of normalized Alexa Appliance IDs for this area
+                # Build a lookup of normalised Alexa Appliance IDs for this area
                 norm_alexa_ids = set()
                 for aid in alexa_ids:
                     if "==_" in aid:

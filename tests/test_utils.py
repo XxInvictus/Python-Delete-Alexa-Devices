@@ -260,73 +260,73 @@ def test_print_table_missing_headers():
     print_table(data, ["X", "Y"], "Missing Headers Table")
 
 
-def test_convert_ha_area_name_basic():
+def test_convert_normalised_area_to_alexa_name_basic():
     """
-    Test convert_ha_area_name with a standard string containing underscores.
+    Test convert_normalised_area_to_alexa_name with a standard string containing underscores.
     """
-    from alexa_manager.utils import convert_ha_area_name
+    from alexa_manager.utils import convert_normalised_area_to_alexa_name
 
-    assert convert_ha_area_name("living_room") == "Living Room"
-    assert convert_ha_area_name("bedroom_2") == "Bedroom 2"
+    assert convert_normalised_area_to_alexa_name("living_room") == "Living Room"
+    assert convert_normalised_area_to_alexa_name("bedroom_2") == "Bedroom 2"
 
 
-def test_convert_ha_area_name_empty():
+def test_convert_normalised_area_to_alexa_name_empty():
     """
-    Test convert_ha_area_name with an empty string.
+    Test convert_normalised_area_to_alexa_name with an empty string.
     """
-    from alexa_manager.utils import convert_ha_area_name
+    from alexa_manager.utils import convert_normalised_area_to_alexa_name
 
-    assert convert_ha_area_name("") == ""
+    assert convert_normalised_area_to_alexa_name("") == ""
 
 
-def test_convert_ha_area_name_multiple_underscores():
+def test_convert_normalised_area_to_alexa_name_multiple_underscores():
     """
-    Test convert_ha_area_name with multiple underscores and leading/trailing spaces.
+    Test convert_normalised_area_to_alexa_name with multiple underscores and leading/trailing spaces.
     """
-    from alexa_manager.utils import convert_ha_area_name
+    from alexa_manager.utils import convert_normalised_area_to_alexa_name
 
-    assert convert_ha_area_name("_garage__door_") == "Garage  Door"
+    assert convert_normalised_area_to_alexa_name("_garage__door_") == "Garage  Door"
 
 
-def test_convert_ha_area_name_type_error():
+def test_convert_normalised_area_to_alexa_name_type_error():
     """
-    Test convert_ha_area_name raises TypeError for non-string input.
+    Test convert_normalised_area_to_alexa_name raises TypeError for non-string input.
     """
-    from alexa_manager.utils import convert_ha_area_name
+    from alexa_manager.utils import convert_normalised_area_to_alexa_name
     import pytest
 
     with pytest.raises(TypeError):
-        convert_ha_area_name(None)
+        convert_normalised_area_to_alexa_name(None)
     with pytest.raises(TypeError):
-        convert_ha_area_name(123)
+        convert_normalised_area_to_alexa_name(123)
 
 
-def test_normalize_area_name_basic():
+def test_normalise_area_name_basic():
     """
-    Test normalize_area_name with typical input.
+    Test normalise_area_name with typical input.
     """
-    from alexa_manager.utils import normalize_area_name
+    from alexa_manager.utils import normalise_area_name
 
-    assert normalize_area_name("Living_Room") == "living room"
-    assert normalize_area_name("  Kitchen  ") == "kitchen"
+    assert normalise_area_name("Living Room") == "living_room"
+    assert normalise_area_name("  Kitchen  ") == "kitchen"
 
 
-def test_normalize_area_name_empty():
+def test_normalise_area_name_empty():
     """
-    Test normalize_area_name with empty string.
+    Test normalise_area_name with empty string.
     """
-    from alexa_manager.utils import normalize_area_name
+    from alexa_manager.utils import normalise_area_name
 
-    assert normalize_area_name("") == ""
+    assert normalise_area_name("") == ""
 
 
-def test_normalize_area_name_multiple_underscores():
+def test_normalise_area_name_multiple_underscores():
     """
-    Test normalize_area_name with multiple underscores.
+    Test normalise_area_name with multiple underscores.
     """
-    from alexa_manager.utils import normalize_area_name
+    from alexa_manager.utils import normalise_area_name
 
-    assert normalize_area_name("_garage__door_") == "garage  door"
+    assert normalise_area_name(" garage  door ") == "garage__door"
 
 
 def test_sanitize_list_basic():

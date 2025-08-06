@@ -159,20 +159,6 @@ def load_config(
     return result
 
 
-def normalize_area_name(area_name: str) -> str:
-    """
-    Normalize area names for comparison between HA and Alexa formats.
-    Converts to lowercase, replaces underscores with spaces, and strips whitespace.
-
-    Args:
-        area_name (str): The area name to normalize.
-
-    Returns:
-        str: Normalized area name.
-    """
-    return area_name.replace("_", " ").strip().lower()
-
-
 # Load config and constants
 config: Dict = load_config()
 
@@ -255,6 +241,8 @@ HA_HEADERS: Dict[str, str] = {
 # -----------------------------
 # Ignored Home Assistant Areas
 # -----------------------------
+from alexa_manager.utils import normalise_area_name  # noqa: E402
+
 IGNORED_HA_AREAS: list[str] = [
-    normalize_area_name(name) for name in config.get("IGNORED_HA_AREAS", [])
+    normalise_area_name(name) for name in config.get("IGNORED_HA_AREAS", [])
 ]

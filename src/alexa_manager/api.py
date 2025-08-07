@@ -40,6 +40,7 @@ from tenacity import (
     stop_after_delay,
     wait_fixed,
     RetryError,
+    retry_if_result,
 )
 import logging
 
@@ -887,7 +888,9 @@ def wait_for_device_discovery(
     try:
         initial_entities = get_entities()
         initial_count = (
-            len(initial_entities) if hasattr(initial_entities, "__len__") else 0
+            len(initial_entities.entities)
+            if hasattr(initial_entities, "entities")
+            else 0
         )
     except (requests.RequestException, ValueError, Exception) as e:
         logger.error(f"Failed to fetch initial Alexa entities: {e}")
@@ -906,31 +909,67 @@ def wait_for_device_discovery(
         )
         return True
 
-    @retry(stop=stop_after_delay(timeout), wait=wait_fixed(poll_interval), reraise=True)
-    def _poll_for_new_devices() -> bool:
+    def get_entity_count() -> int:
         """
-        Polls for new Alexa devices by checking if the entity count increases.
-        Raises a RuntimeError if no new devices are found (to trigger retry).
+        Helper function to get the current Alexa entity count.
+        Returns:
+            int: Number of Alexa entities.
         """
-        try:
-            current_entities = get_entities()
-            current_count = (
-                len(current_entities) if hasattr(current_entities, "__len__") else 0
-            )
-        except (requests.RequestException, ValueError) as e:
-            logger.warning(f"Error fetching Alexa entities during polling: {e}")
-            raise RuntimeError("Polling error") from e
-        if current_count > initial_count:
-            logger.info(
-                f"New Alexa devices discovered! Entity count increased to {current_count}."
-            )
-            return True
-        logger.debug(f"No new devices yet. Current count: {current_count}. Waiting...")
-        raise RuntimeError("No new devices yet")
+        entities = get_entities()
+        return len(entities.entities) if hasattr(entities, "entities") else 0
 
-    # Use tenacity to handle polling and waiting
+    class DiscoveryState:
+        """
+        Tracks the state of entity count stability after an increase.
+        """
+
+        def __init__(self, initial_count: int, stable_required: int = 3):
+            self.initial_count = initial_count
+            self.last_counts: list[int] = []
+            self.detected_increase = False
+            self.stable_required = stable_required
+
+        def update(self, count: int) -> bool:
+            if not self.detected_increase:
+                if count > self.initial_count:
+                    logger.info(
+                        f"New Alexa devices discovered! Entity count increased to {count}. Waiting for count to stabilize..."
+                    )
+                    self.detected_increase = True
+                    self.last_counts = [count]
+                else:
+                    logger.debug(
+                        f"No new devices yet. Current count: {count}. Waiting..."
+                    )
+                    return False
+            else:
+                self.last_counts.append(count)
+                if len(self.last_counts) > self.stable_required:
+                    self.last_counts.pop(0)
+                if len(self.last_counts) == self.stable_required and all(
+                    x == self.last_counts[0] for x in self.last_counts
+                ):
+                    logger.info(
+                        f"Entity count stable for {self.stable_required} consecutive checks at {count}. Discovery complete."
+                    )
+                    return True
+                logger.debug(f"Entity count stability buffer: {self.last_counts}")
+            return False
+
+    state = DiscoveryState(initial_count)
+
+    @retry(
+        stop=stop_after_delay(timeout),
+        wait=wait_fixed(poll_interval),
+        retry=retry_if_result(lambda result: not result),
+        reraise=True,
+    )
+    def poll_until_stable() -> bool:
+        count = get_entity_count()
+        return state.update(count)
+
     try:
-        _poll_for_new_devices()
+        poll_until_stable()
         return True
     except (RetryError, RuntimeError, Exception) as e:
         logger.warning(

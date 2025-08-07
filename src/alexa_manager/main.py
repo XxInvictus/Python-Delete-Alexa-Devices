@@ -751,8 +751,14 @@ def full_sync_workflow(args: argparse.Namespace) -> Dict[str, Any]:
         entities_obj = get_entities()
         if entities_obj and hasattr(entities_obj, "entities") and entities_obj.entities:
             logger.info("Deleting Alexa skill entities...")
-            delete_entities(entities_obj, args.interactive)
-            summary["entities_deleted"] = True
+            if getattr(args, "filter_entities", False):
+                # Respect --filter-entities flag: only delete filtered entities
+                deleted_count = entities_obj.delete_filtered_entities()
+                logger.info(f"Deleted {deleted_count} filtered Alexa skill entities.")
+                summary["entities_deleted"] = True if deleted_count > 0 else False
+            else:
+                delete_entities(entities_obj, args.interactive)
+                summary["entities_deleted"] = True
         else:
             logger.warning("No Alexa skill entities found.")
             summary["errors"].append("No Alexa skill entities found.")
@@ -770,8 +776,16 @@ def full_sync_workflow(args: argparse.Namespace) -> Dict[str, Any]:
             and endpoints_obj.entities
         ):
             logger.info("Deleting Alexa endpoint entities...")
-            delete_endpoints(endpoints_obj, args.interactive)
-            summary["endpoints_deleted"] = True
+            if getattr(args, "filter_entities", False):
+                # Respect --filter-entities flag: only delete filtered endpoints
+                deleted_count = endpoints_obj.delete_filtered_entities()
+                logger.info(
+                    f"Deleted {deleted_count} filtered Alexa endpoint entities."
+                )
+                summary["endpoints_deleted"] = True if deleted_count > 0 else False
+            else:
+                delete_endpoints(endpoints_obj, args.interactive)
+                summary["endpoints_deleted"] = True
         else:
             logger.warning("No Alexa endpoint entities found.")
             summary["errors"].append("No Alexa endpoint entities found.")
@@ -788,9 +802,8 @@ def full_sync_workflow(args: argparse.Namespace) -> Dict[str, Any]:
             delete_groups(groups_obj, args.interactive)
             summary["groups_deleted"] = True
         else:
-            logger.warning("No Alexa groups found.")
-            summary["errors"].append("No Alexa groups found.")
-            return summary
+            logger.info("No Alexa groups found. Skipping group deletion.")
+            summary["groups_deleted"] = False
     except Exception as e:
         logger.error(f"Error deleting Alexa groups: {e}")
         summary["errors"].append(str(e))

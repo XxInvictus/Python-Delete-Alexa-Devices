@@ -163,13 +163,17 @@ def test_fetch_last_used_alexa_api_error(mock_post):
 @patch("alexa_manager.api.alexa_discover_devices")
 def test_wait_for_device_discovery_success(mock_discover, mock_get_entities):
     """
-    Test wait_for_device_discovery returns True when new devices are discovered before timeout.
+    Test wait_for_device_discovery returns True when new devices are discovered and
+    the entity count remains stable for the required consecutive polls.
     """
-    # Initial call returns 2 entities, then 2, then 3 (discovered)
+    # Simulate: 2, 2, 3, 3, 3 (stable_required=3 by default)
     mock_get_entities.side_effect = [
-        MagicMock(__len__=lambda s: 2),
-        MagicMock(__len__=lambda s: 2),
-        MagicMock(__len__=lambda s: 3),
+        MagicMock(entities=[1, 2]),  # initial
+        MagicMock(entities=[1, 2]),  # poll 1
+        MagicMock(entities=[1, 2, 3]),  # poll 2 (increase)
+        MagicMock(entities=[1, 2, 3]),  # poll 3 (stable 1)
+        MagicMock(entities=[1, 2, 3]),  # poll 4 (stable 2)
+        MagicMock(entities=[1, 2, 3]),  # poll 5 (stable 3)
     ]
     mock_discover.return_value = None
     result = api.wait_for_device_discovery(timeout=10, poll_interval=0.01)

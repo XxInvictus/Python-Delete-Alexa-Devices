@@ -11,9 +11,8 @@
   - [How to Retrieve Required Configuration Values (Android/iOS)](#how-to-retrieve-required-configuration-values-androidios)
 - [Usage](#usage)
   - [CLI Arguments](#cli-arguments)
-  - [Examples](#examples)
-    - [Basic Examples](#basic-examples)
-    - [Special Function Examples](#special-function-examples)
+  - [Basic Examples](#basic-examples)
+  - [Special Function Examples](#special-function-examples)
 - [Testing](#testing)
 - [Coding Standards](#coding-standards)
 - [Contributing](#contributing)
@@ -126,7 +125,6 @@ uv run alexa_manager --help
 | `--help`                | _Option_    | Show help message and exit.                                                                                                                                                                               |
 
 ---
-## Examples
 ### Basic Examples
 #### Core Examples:
 <details><summary>Click to Expand...</summary>
@@ -158,6 +156,8 @@ uv run alexa_manager --delete-endpoints --filter-entities
 
 #### Examples for testing/validation:
 <details><summary>Click to Expand...</summary>
+>[!WARNING]
+>This is **LIVE** testing and will still perform GET based actions, for mock tests see [Testing](#testing)
 
 ```sh
 uv run alexa_manager --dry-run

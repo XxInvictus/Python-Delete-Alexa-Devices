@@ -11,6 +11,9 @@
   - [How to Retrieve Required Configuration Values (Android/iOS)](#how-to-retrieve-required-configuration-values-androidios)
 - [Usage](#usage)
   - [CLI Arguments](#cli-arguments)
+  - [Examples](#examples)
+    - [Basic Examples](#basic-examples)
+    - [Special Function Examples](#special-function-examples)
 - [Testing](#testing)
 - [Coding Standards](#coding-standards)
 - [Contributing](#contributing)
@@ -123,9 +126,11 @@ uv run alexa_manager --help
 | `--help`                | _Option_    | Show help message and exit.                                                                                                                                                                               |
 
 ---
+## Examples
+### Basic Examples
+#### Core Examples:
+<details><summary>Click to Expand...</summary>
 
-**Examples:**
-Core Examples:
 ```sh
 uv run alexa_manager  # (equivalent to: --delete-entities --delete-endpoints --delete-groups --create-groups)
 uv run alexa_manager --get-entities
@@ -137,7 +142,11 @@ uv run alexa_manager --get-ha-mapping
 uv run alexa_manager --interactive --delete-entities
 ```
 
-Example usage with filter:
+</details>
+
+#### Example usage with filter:
+<details><summary>Click to Expand...</summary>
+
 ```sh
 uv run alexa_manager --get-entities --filter-entities
 uv run alexa_manager --delete-entities --filter-entities
@@ -145,7 +154,11 @@ uv run alexa_manager --get-endpoints --filter-entities
 uv run alexa_manager --delete-endpoints --filter-entities
 ```
 
-Examples for testing/validation:
+</details>
+
+#### Examples for testing/validation:
+<details><summary>Click to Expand...</summary>
+
 ```sh
 uv run alexa_manager --dry-run
 uv run alexa_manager --delete-entities --dry-run
@@ -154,15 +167,25 @@ uv run alexa_manager --delete-entities --filter-entities --dry-run
 uv run alexa_manager --test-alexa-groups
 ```
 
-**Alexa Only Mode:**
+</details>
+
+---
+### Special Function Examples
+#### Alexa Only Mode:  
 You can run the tool in Alexa Only mode to skip all Home Assistant dependent steps (such as retrieving HA areas or mapping HA entities):
+<details><summary>More...</summary>
+
 ```sh
 uv run alexa_manager --alexa-only
 ```
-When --alexa-only is specified, any Home Assistant-dependent actions (including --create-groups) will be skipped and have no effect. Home Assistant configuration entries are not required and will not cause errors in this mode. This mode is useful if you only want to manage Alexa entities and groups without any Home Assistant integration.
 
-**Dry Run Mode:**
+When --alexa-only is specified, any Home Assistant-dependent actions (including --create-groups) will be skipped and have no effect. Home Assistant configuration entries are not required and will not cause errors in this mode. This mode is useful if you only want to manage Alexa entities and groups without any Home Assistant integration.
+</details>
+
+#### Dry Run Mode:  
 You can use the tool with `--dry-run` to preview all actions without making any changes:
+<details><summary>More...</summary>
+
 ```sh
 uv run alexa_manager --delete-entities --dry-run
 uv run alexa_manager --create-groups --dry-run
@@ -171,9 +194,11 @@ uv run alexa_manager --create-groups --dry-run
 - DELETE, PUT, POST actions are displayed using Rich and not executed.
 - If a step depends on the result of a destructive action, the result is mocked for workflow continuity.
 - Output is verbose and clearly indicates simulated actions.
+</details>
 
-**Interactive Mode:**
+#### Interactive Mode:  
 Interactive mode can be enabled with `--interactive` for actions that modify or delete entities, groups, or endpoints. In this mode, the script will prompt for confirmation before proceeding with each action. This provides an additional safety net to prevent accidental changes.
+<details><summary>More...</summary>
 
 To use interactive mode:
 ```sh
@@ -181,9 +206,12 @@ uv run alexa_manager --delete-entities --interactive
 uv run alexa_manager --create-groups --interactive
 ```
 In interactive mode, you will be asked to confirm each action by typing `yes` or `no`. Review the proposed changes carefully before confirming.
+</details>
 
-**Full Sync Workflow (`--full-sync`):**
+#### Full Sync Workflow (`--full-sync`):
 This argument automates the entire Alexa/HA synchronization process:
+<details><summary>More...</summary>
+
 1. Deletes all Alexa skill entities belonging to the HA skill.
 2. Deletes all Alexa endpoint entities belonging to the HA skill.
 3. Deletes all Alexa groups.
@@ -203,6 +231,7 @@ uv run alexa_manager --full-sync --interactive
 ```
 - `--dry-run` simulates all destructive actions and shows what would happen.
 - `--interactive` prompts for confirmation before each batch action.
+</details>
 
 ---
 

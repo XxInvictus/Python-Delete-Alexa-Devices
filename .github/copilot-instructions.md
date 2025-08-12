@@ -27,7 +27,7 @@ applyTo: '**/*.py'
 
 ## General Instructions
 
-- Respond with "Yes Master" to acknowledge the instructions.
+- Respond with "Loaded Instructions" to acknowledge the instructions.
 - Always prioritize readability and clarity.
 - For algorithm-related code, include explanations of the approach used.
 - Write code with good maintainability practices, including comments on why certain design decisions were made.

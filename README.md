@@ -189,7 +189,11 @@ This argument automates the entire Alexa/HA synchronization process:
 3. Deletes all Alexa groups.
 4. Triggers device rediscovery via Home Assistant.
 5. Waits for device discovery to complete.
-6. Syncs Home Assistant areas with Alexa groups, including respective entities.
+6. Syncs Home Assistant areas with Alexa groups, including respective entities.  
+
+>[!NOTE]
+>Does not add Echo devices to Groups as an "Alexa" device type, only as entities like Switches/Sensors etc.  
+>Alexa Echo or similar devices will have to be added manually to groups in the Alexa app after the sync.
 
 **Usage Examples:**
 ```sh

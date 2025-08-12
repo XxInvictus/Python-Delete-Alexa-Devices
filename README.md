@@ -156,6 +156,7 @@ uv run alexa_manager --delete-endpoints --filter-entities
 
 #### Examples for testing/validation:
 <details><summary>Click to Expand...</summary>
+
 >[!WARNING]
 >This is **LIVE** testing and will still perform GET based actions, for mock tests see [Testing](#testing)
 

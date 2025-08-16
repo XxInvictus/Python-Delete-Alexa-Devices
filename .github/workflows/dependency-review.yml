@@ -11,8 +11,6 @@ name: 'Dependency review'
 on:
   pull_request:
     branches: [ "main" ]
-  schedule:
-    - cron: '1 0 * * 6' # Every Saturday at 1:00 AM UTC
 
 # If using a dependency submission action in this workflow this permission will need to be set to:
 #
